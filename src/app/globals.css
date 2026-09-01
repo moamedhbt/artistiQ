@@ -7,7 +7,7 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-obsidian text-gray-100 font-sans antialiased selection:bg-roseGold selection:text-obsidian min-h-screen;
+    @apply bg-obsidian text-gray-100 font-sans antialiased selection:bg-roseGold selection:text-obsidian min-h-screen overflow-x-hidden;
   }
 }
 
@@ -44,11 +44,11 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0F0E13;
+  background: #0B0A0F;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #282436;
+  background: #262232;
   border-radius: 4px;
 }
 

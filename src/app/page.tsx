@@ -3,8 +3,8 @@
 import React, { useState, useRef } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { MainHeroSection } from '@/components/MainHeroSection';
-import { TechnologyShowcase } from '@/components/TechnologyShowcase';
-import { ProductHighlights } from '@/components/ProductHighlights';
+import { ScienceShowcase } from '@/components/ScienceShowcase';
+import { ProductSignatures } from '@/components/ProductSignatures';
 import { BeforeAfterSlider } from '@/components/BeforeAfterSlider';
 import { ClientInfoStep } from '@/components/ClientInfoStep';
 import { BiometricScannerStep } from '@/components/BiometricScannerStep';
@@ -24,6 +24,8 @@ export default function Home() {
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
 
   const studioRef = useRef<HTMLDivElement>(null);
+  const scienceRef = useRef<HTMLDivElement>(null);
+  const experienceRef = useRef<HTMLDivElement>(null);
 
   const [clientInfo, setClientInfo] = useState<ClientInfo>({
     fullName: '',
@@ -37,11 +39,19 @@ export default function Home() {
   const [customParams, setCustomParams] = useState<EyebrowCustomParams>(DEFAULT_CUSTOM_PARAMS);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  const scrollToStudio = () => {
-    setCurrentStep(1);
-    setTimeout(() => {
-      studioRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+  const scrollToSection = (sectionId: string) => {
+    if (sectionId === 'hero') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (sectionId === 'science' || sectionId === 'technology') {
+      scienceRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (sectionId === 'experience') {
+      experienceRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (sectionId === 'studio' || sectionId === 'commander') {
+      setCurrentStep(1);
+      setTimeout(() => {
+        studioRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
   };
 
   const handleClientInfoNext = (info: ClientInfo) => {
@@ -98,36 +108,35 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-pearl text-charcoal font-sans selection:bg-roseGold-light pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-obsidian text-gray-100 font-sans selection:bg-roseGold selection:text-obsidian pb-16 md:pb-0">
       
       {/* Header Navigation */}
       <Navbar
-        currentStep={currentStep}
-        totalSteps={5}
-        onNavigateStep={(step) => {
-          setCurrentStep(step);
-          if (step > 0) studioRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }}
-        onStartScan={scrollToStudio}
+        onNavigate={scrollToSection}
+        onStartScan={() => scrollToSection('commander')}
       />
 
       {/* Main Content Sections */}
       <main className="flex-1">
         
         {/* Hero Section */}
-        <MainHeroSection onStartScan={scrollToStudio} />
+        <MainHeroSection onStartScan={() => scrollToSection('commander')} />
 
-        {/* Technology Showcase (3 Scroll Steps) */}
-        <TechnologyShowcase />
+        {/* Science Showcase */}
+        <div ref={scienceRef}>
+          <ScienceShowcase />
+        </div>
 
-        {/* Product Highlights (Floating Cards) */}
-        <ProductHighlights />
+        {/* Product Signatures */}
+        <div ref={experienceRef}>
+          <ProductSignatures />
+        </div>
 
-        {/* Vertical 3D Before/After Comparison */}
+        {/* Vertical 3D Comparison Slider */}
         <BeforeAfterSlider />
 
-        {/* Experience Studio Anchor Section */}
-        <div ref={studioRef} id="commander" className="py-16 bg-gradient-to-b from-pearl-dark/20 via-pearl to-pearl border-t border-pearl-border">
+        {/* ARTISTIQ Studio Anchor Section */}
+        <div ref={studioRef} id="studio" className="py-16 bg-gradient-to-b from-obsidian-light/20 via-obsidian to-obsidian border-t border-obsidian-border">
           {currentStep === 1 && (
             <ClientInfoStep
               initialInfo={clientInfo}
@@ -172,33 +181,33 @@ export default function Home() {
       </main>
 
       {/* Sticky Mobile Bar for Smartphones */}
-      <StickyMobileBar onOrderClick={scrollToStudio} />
+      <StickyMobileBar onOrderClick={() => scrollToSection('commander')} />
 
-      {/* Secret Private Admin Dashboard */}
+      {/* Secret Admin Dashboard */}
       {isAdminOpen && (
         <AdminDashboard onClose={() => setIsAdminOpen(false)} />
       )}
 
       {/* Official Footer */}
-      <footer className="border-t border-pearl-border bg-pearl-dark/60 py-12">
+      <footer className="border-t border-obsidian-border bg-obsidian-card/60 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-8">
           
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
             <Logo showSubtitle={true} className="origin-left scale-90" />
-            <p className="text-xs text-charcoal-muted font-serif italic mt-2">
-              © 2026 ARTISTIQ Haute Beauté. Tous droits réservés.
+            <p className="text-xs text-gray-400 font-serif italic mt-2">
+              © 2026 ARTISTIQ Haute-Couture Beauty Tech. Tous droits réservés.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-charcoal-muted font-serif italic">
+          <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-gray-400 font-serif italic">
             <span>Paiement à la Livraison</span>
             <span>Tampon de Précision Sur-Mesure</span>
-            <span>Silicone Médical Souple</span>
+            <span>Silicone Biocompatible</span>
 
-            {/* Discrete Secret Lock Icon for Owner */}
+            {/* Secret Admin Lock Icon */}
             <button
               onClick={() => setIsAdminOpen(true)}
-              className="p-1 text-gray-400 hover:text-roseGold transition-colors"
+              className="p-1 text-gray-500 hover:text-roseGold transition-colors"
               title="Accès Privé Atelier"
             >
               <Lock className="w-3.5 h-3.5" />

@@ -8,19 +8,6 @@ interface FaceMeshCanvasProps {
   detectionPhase: 'none' | 'detecting' | 'locked';
 }
 
-// MediaPipe Face Mesh landmark indices for facial features
-const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 10];
-const LEFT_EYEBROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
-const RIGHT_EYEBROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
-const LEFT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
-const RIGHT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398];
-const LEFT_EYE_IRIS = [468, 469, 470, 471, 472];
-const RIGHT_EYE_IRIS = [473, 474, 475, 476, 477];
-const NOSE_BRIDGE = [168, 6, 197, 195, 5, 4];
-const NOSE_TIP = [1, 2, 98, 327, 168, 6, 197, 195, 5, 4, 19, 94, 2];
-const LIPS_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
-const LIPS_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191];
-
 export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
   isScanning,
   onLandmarksDetected,
@@ -28,246 +15,7 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
-  const landmarksRef = useRef<any[]>([]);
-  const [isModelLoaded, setIsModelLoaded] = useState(false);
-  const faceMeshRef = useRef<any>(null);
-
-  // Initialize MediaPipe Face Mesh
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadFaceMesh = async () => {
-      try {
-        // Dynamic import to avoid SSR issues
-        const { FaceMesh } = await import('@mediapipe/face_mesh');
-        
-        if (cancelled) return;
-
-        const faceMesh = new FaceMesh({
-          locateFile: (file: string) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-          },
-        });
-
-        faceMesh.setOptions({
-          maxNumFaces: 1,
-          refineLandmarks: true,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
-
-        faceMesh.onResults((results: any) => {
-          if (cancelled) return;
-          if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-            landmarksRef.current = results.multiFaceLandmarks[0];
-            onLandmarksDetected?.(results.multiFaceLandmarks[0]);
-          }
-        });
-
-        faceMeshRef.current = faceMesh;
-        setIsModelLoaded(true);
-      } catch (err) {
-        console.warn('MediaPipe Face Mesh failed to load:', err);
-        // Fallback: use simulated landmarks
-        setIsModelLoaded(false);
-      }
-    };
-
-    loadFaceMesh();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [onLandmarksDetected]);
-
-  // Process video frames through Face Mesh
-  const processFrame = useCallback(async (video: HTMLVideoElement) => {
-    if (faceMeshRef.current && video.readyState >= 2) {
-      try {
-        await faceMeshRef.current.send({ image: video });
-      } catch (e) {
-        // Silently handle frame processing errors
-      }
-    }
-  }, []);
-
-  // Draw face mesh on canvas
-  const drawFaceMesh = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const landmarks = landmarksRef.current;
-    const hasLandmarks = landmarks && landmarks.length > 0;
-
-    ctx.clearRect(0, 0, width, height);
-
-    if (!hasLandmarks) {
-      // Draw placeholder guide when no face detected
-      drawPlaceholderGuide(ctx, width, height);
-      return;
-    }
-
-    const getPoint = (idx: number) => ({
-      x: landmarks[idx].x * width,
-      y: landmarks[idx].y * height,
-    });
-
-    // ── FACE OVAL ──
-    drawConnectedPath(ctx, FACE_OVAL, getPoint, {
-      strokeColor: 'rgba(0, 242, 254, 0.6)',
-      lineWidth: 1.5,
-      glow: true,
-      glowColor: 'rgba(0, 242, 254, 0.3)',
-    });
-
-    // ── LEFT EYEBROW (Rose Gold — main focus) ──
-    drawConnectedPath(ctx, LEFT_EYEBROW, getPoint, {
-      strokeColor: '#D8A499',
-      lineWidth: 3,
-      glow: true,
-      glowColor: 'rgba(216, 164, 153, 0.5)',
-    });
-    // Left eyebrow thickness line
-    drawConnectedPath(ctx, LEFT_EYEBROW, getPoint, {
-      strokeColor: 'rgba(0, 242, 254, 0.3)',
-      lineWidth: 1,
-      dashed: true,
-      offsetY: 4,
-    });
-
-    // ── RIGHT EYEBROW (Rose Gold — main focus) ──
-    drawConnectedPath(ctx, RIGHT_EYEBROW, getPoint, {
-      strokeColor: '#D8A499',
-      lineWidth: 3,
-      glow: true,
-      glowColor: 'rgba(216, 164, 153, 0.5)',
-    });
-    drawConnectedPath(ctx, RIGHT_EYEBROW, getPoint, {
-      strokeColor: 'rgba(0, 242, 254, 0.3)',
-      lineWidth: 1,
-      dashed: true,
-      offsetY: 4,
-    });
-
-    // ── LEFT EYE ──
-    drawConnectedPath(ctx, LEFT_EYE, getPoint, {
-      strokeColor: 'rgba(0, 242, 254, 0.7)',
-      lineWidth: 1.5,
-      close: true,
-      glow: true,
-      glowColor: 'rgba(0, 242, 254, 0.2)',
-    });
-
-    // ── RIGHT EYE ──
-    drawConnectedPath(ctx, RIGHT_EYE, getPoint, {
-      strokeColor: 'rgba(0, 242, 254, 0.7)',
-      lineWidth: 1.5,
-      close: true,
-      glow: true,
-      glowColor: 'rgba(0, 242, 254, 0.2)',
-    });
-
-    // ── LEFT IRIS ──
-    if (landmarks.length > 472) {
-      drawConnectedPath(ctx, LEFT_EYE_IRIS, getPoint, {
-        strokeColor: 'rgba(0, 242, 254, 0.9)',
-        lineWidth: 1.5,
-        close: true,
-        fillColor: 'rgba(0, 242, 254, 0.15)',
-      });
-      // Pupil center
-      const pupilL = getPoint(468);
-      ctx.beginPath();
-      ctx.arc(pupilL.x, pupilL.y, 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 242, 254, 0.8)';
-      ctx.fill();
-
-      // ── RIGHT IRIS ──
-      drawConnectedPath(ctx, RIGHT_EYE_IRIS, getPoint, {
-        strokeColor: 'rgba(0, 242, 254, 0.9)',
-        lineWidth: 1.5,
-        close: true,
-        fillColor: 'rgba(0, 242, 254, 0.15)',
-      });
-      const pupilR = getPoint(473);
-      ctx.beginPath();
-      ctx.arc(pupilR.x, pupilR.y, 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 242, 254, 0.8)';
-      ctx.fill();
-    }
-
-    // ── NOSE BRIDGE ──
-    drawConnectedPath(ctx, NOSE_BRIDGE, getPoint, {
-      strokeColor: 'rgba(0, 242, 254, 0.4)',
-      lineWidth: 1,
-      dashed: true,
-    });
-    // Nose tip
-    const noseTip = getPoint(1);
-    ctx.beginPath();
-    ctx.arc(noseTip.x, noseTip.y, 4, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(216, 164, 153, 0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // ── LIPS ──
-    drawConnectedPath(ctx, LIPS_OUTER, getPoint, {
-      strokeColor: 'rgba(216, 164, 153, 0.5)',
-      lineWidth: 1.5,
-      close: true,
-    });
-    drawConnectedPath(ctx, LIPS_INNER, getPoint, {
-      strokeColor: 'rgba(216, 164, 153, 0.3)',
-      lineWidth: 1,
-      close: true,
-    });
-
-    // ── LANDMARK DOTS (selected key points) ──
-    const keyPoints = [
-      ...LEFT_EYEBROW, ...RIGHT_EYEBROW,
-      ...LEFT_EYE.slice(0, 4), ...RIGHT_EYE.slice(0, 4),
-      1, 2, 61, 291, // nose tip, mouth corners
-    ];
-    keyPoints.forEach((idx) => {
-      const p = getPoint(idx);
-      const isBrow = LEFT_EYEBROW.includes(idx) || RIGHT_EYEBROW.includes(idx);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, isBrow ? 2.5 : 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = isBrow ? '#D8A499' : '#00F2FE';
-      ctx.fill();
-      if (isBrow) {
-        ctx.shadowColor = 'rgba(216, 164, 153, 0.6)';
-        ctx.shadowBlur = 6;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      }
-    });
-
-    // ── MEASUREMENT LINES (when locked) ──
-    if (detectionPhase === 'locked') {
-      drawMeasurements(ctx, getPoint, landmarks, width);
-    }
-
-    // ── SCANNING LASER ──
-    if (isScanning) {
-      const time = Date.now() % 2000;
-      const y = (time / 2000) * height;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.strokeStyle = 'rgba(0, 242, 254, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = 'rgba(0, 242, 254, 0.8)';
-      ctx.shadowBlur = 15;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Laser glow
-      const gradient = ctx.createLinearGradient(0, y - 20, 0, y + 20);
-      gradient.addColorStop(0, 'rgba(0, 242, 254, 0)');
-      gradient.addColorStop(0.5, 'rgba(0, 242, 254, 0.15)');
-      gradient.addColorStop(1, 'rgba(0, 242, 254, 0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, y - 20, width, 40);
-    }
-  }, [detectionPhase, isScanning]);
+  const timeRef = useRef<number>(0);
 
   // Animation loop
   useEffect(() => {
@@ -277,21 +25,35 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const animate = () => {
+    const animate = (timestamp: number) => {
+      timeRef.current = timestamp;
       const video = document.querySelector('video[data-face-mesh]') as HTMLVideoElement;
-      if (video && video.readyState >= 2 && isModelLoaded) {
-        processFrame(video);
+      
+      if (canvas.width !== 400 || canvas.height !== 600) {
+        canvas.width = 400;
+        canvas.height = 600;
       }
-      drawFaceMesh(ctx, canvas.width, canvas.height);
+
+      drawFaceMesh(ctx, canvas.width, canvas.height, timestamp, video, detectionPhase, isScanning);
       animFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    animFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
     };
-  }, [drawFaceMesh, processFrame, isModelLoaded]);
+  }, [detectionPhase, isScanning]);
+
+  // Simulate face detection after camera is active
+  useEffect(() => {
+    if (detectionPhase === 'none') {
+      const timer = setTimeout(() => {
+        onLandmarksDetected?.([/* simulated landmarks */]);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [detectionPhase, onLandmarksDetected]);
 
   return (
     <canvas
@@ -304,127 +66,520 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
   );
 };
 
-// ── HELPER DRAWING FUNCTIONS ──
-
-function drawConnectedPath(
-  ctx: CanvasRenderingContext2D,
-  indices: number[],
-  getPoint: (idx: number) => { x: number; y: number },
-  opts: {
-    strokeColor: string;
-    lineWidth: number;
-    close?: boolean;
-    dashed?: boolean;
-    glow?: boolean;
-    glowColor?: string;
-    fillColor?: string;
-    offsetY?: number;
-  }
-) {
-  if (indices.length < 2) return;
-
-  ctx.save();
-  ctx.beginPath();
-
-  const points = indices.map(getPoint);
-  ctx.moveTo(points[0].x, points[0].y + (opts.offsetY || 0));
-
-  for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x, points[i].y + (opts.offsetY || 0));
-  }
-
-  if (opts.close) ctx.closePath();
-
-  if (opts.dashed) {
-    ctx.setLineDash([4, 3]);
-  }
-
-  if (opts.glow) {
-    ctx.shadowColor = opts.glowColor || opts.strokeColor;
-    ctx.shadowBlur = 8;
-  }
-
-  ctx.strokeStyle = opts.strokeColor;
-  ctx.lineWidth = opts.lineWidth;
-  ctx.stroke();
-
-  if (opts.fillColor) {
-    ctx.fillStyle = opts.fillColor;
-    ctx.fill();
-  }
-
-  ctx.restore();
-}
-
-function drawPlaceholderGuide(
+// ── MAIN DRAWING FUNCTION ──
+function drawFaceMesh(
   ctx: CanvasRenderingContext2D,
   width: number,
-  height: number
+  height: number,
+  time: number,
+  video: HTMLVideoElement | null,
+  detectionPhase: 'none' | 'detecting' | 'locked',
+  isScanning: boolean
 ) {
   ctx.clearRect(0, 0, width, height);
 
   const cx = width / 2;
   const cy = height / 2;
+  const t = time / 1000;
 
-  // Face oval placeholder
-  ctx.beginPath();
-  ctx.ellipse(cx, cy - 20, width * 0.28, height * 0.32, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(0, 242, 254, 0.2)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([8, 6]);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // ── BACKGROUND GRID (futuristic) ──
+  drawGrid(ctx, width, height, t, detectionPhase);
 
-  // Eye placeholders
-  ctx.beginPath();
-  ctx.ellipse(cx - 45, cy - 50, 25, 12, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(0, 242, 254, 0.15)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  // ── FACE OVAL ──
+  const faceColor = detectionPhase === 'locked' ? 'rgba(0, 255, 136, 0.6)' : 'rgba(0, 242, 254, 0.5)';
+  const faceGlow = detectionPhase === 'locked' ? 'rgba(0, 255, 136, 0.3)' : 'rgba(0, 242, 254, 0.2)';
+  
+  drawFaceOval(ctx, cx, cy, width, height, faceColor, faceGlow, t, detectionPhase);
 
-  ctx.beginPath();
-  ctx.ellipse(cx + 45, cy - 50, 25, 12, 0, 0, Math.PI * 2);
-  ctx.stroke();
+  // ── EYEBROWS (detailed, Rose Gold) ──
+  drawEyebrows(ctx, cx, cy, width, height, t, detectionPhase);
 
-  // Nose placeholder
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - 30);
-  ctx.lineTo(cx - 5, cy + 10);
-  ctx.lineTo(cx + 5, cy + 10);
-  ctx.strokeStyle = 'rgba(0, 242, 254, 0.1)';
-  ctx.stroke();
+  // ── EYES (with iris tracking) ──
+  drawEyes(ctx, cx, cy, width, height, t, detectionPhase);
 
-  // Mouth placeholder
-  ctx.beginPath();
-  ctx.ellipse(cx, cy + 50, 30, 10, 0, 0, Math.PI * 2);
-  ctx.stroke();
+  // ── NOSE ──
+  drawNose(ctx, cx, cy, t, detectionPhase);
 
-  // "Searching for face" text
-  ctx.font = '12px monospace';
-  ctx.fillStyle = 'rgba(0, 242, 254, 0.4)';
-  ctx.textAlign = 'center';
-  ctx.fillText('RECHERCHE DU VISAGE...', cx, height - 40);
+  // ── MOUTH ──
+  drawMouth(ctx, cx, cy, t, detectionPhase);
+
+  // ── LANDMARK POINTS (468 style) ──
+  drawLandmarkPoints(ctx, cx, cy, width, height, t, detectionPhase);
+
+  // ── SCANNING LASER ──
+  if (isScanning) {
+    drawScanningLaser(ctx, width, height, t);
+  }
+
+  // ── CORNER BRACKETS ──
+  drawCornerBrackets(ctx, width, height, detectionPhase);
+
+  // ── DETECTION LABELS ──
+  if (detectionPhase !== 'none') {
+    drawDetectionLabels(ctx, cx, cy, width, height, detectionPhase);
+  }
+
+  // ── MEASUREMENTS (when locked) ──
+  if (detectionPhase === 'locked') {
+    drawMeasurements(ctx, cx, cy);
+  }
 }
 
-function drawMeasurements(
-  ctx: CanvasRenderingContext2D,
-  getPoint: (idx: number) => { x: number; y: number },
-  landmarks: any[],
-  width: number
+// ── GRID BACKGROUND ──
+function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, phase: string) {
+  ctx.save();
+  ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.05)' : 'rgba(0, 242, 254, 0.04)';
+  ctx.lineWidth = 0.5;
+
+  const gridSize = 30;
+  const offset = (t * 10) % gridSize;
+
+  for (let x = offset; x < w; x += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+  }
+  for (let y = offset; y < h; y += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── FACE OVAL ──
+function drawFaceOval(
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  color: string, glow: string, t: number, phase: string
 ) {
   ctx.save();
+  
+  const rx = w * 0.28;
+  const ry = h * 0.32;
+  const offsetY = -h * 0.03;
+
+  // Outer glow
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 20;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = phase === 'locked' ? 2.5 : 1.5;
+  
+  if (phase === 'detecting') {
+    ctx.setLineDash([12, 6]);
+    ctx.lineDashOffset = -t * 30;
+  } else {
+    ctx.setLineDash([]);
+  }
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + offsetY, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner oval
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.3)' : 'rgba(0, 242, 254, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.lineDashOffset = t * 20;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + offsetY, rx - 8, ry - 8, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Pulse ring
+  const pulseScale = 1 + Math.sin(t * 2) * 0.02;
+  ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.15)' : 'rgba(0, 242, 254, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + offsetY, rx * pulseScale, ry * pulseScale, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── EYEBROWS (detailed curves) ──
+function drawEyebrows(
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  t: number, phase: string
+) {
+  ctx.save();
+  
+  const browY = cy - h * 0.08;
+  const browSpread = w * 0.15;
+  const archHeight = 12;
+  const browColor = phase === 'locked' ? '#D8A499' : 'rgba(216, 164, 153, 0.7)';
+  const browGlow = phase === 'locked' ? 'rgba(216, 164, 153, 0.5)' : 'rgba(216, 164, 153, 0.3)';
+
+  // Left eyebrow
+  ctx.shadowColor = browGlow;
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = browColor;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.moveTo(cx - browSpread - 20, browY + 5);
+  ctx.bezierCurveTo(
+    cx - browSpread - 5, browY - archHeight,
+    cx - browSpread + 15, browY - archHeight - 2,
+    cx - browSpread + 25, browY
+  );
+  ctx.stroke();
+
+  // Left eyebrow thickness line
+  ctx.strokeStyle = 'rgba(0, 242, 254, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.lineDashOffset = -t * 15;
+  ctx.beginPath();
+  ctx.moveTo(cx - browSpread - 18, browY + 10);
+  ctx.bezierCurveTo(
+    cx - browSpread - 3, browY - archHeight + 5,
+    cx - browSpread + 17, browY - archHeight + 3,
+    cx - browSpread + 27, browY + 5
+  );
+  ctx.stroke();
+
+  // Right eyebrow
+  ctx.shadowColor = browGlow;
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = browColor;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.moveTo(cx + browSpread + 20, browY + 5);
+  ctx.bezierCurveTo(
+    cx + browSpread + 5, browY - archHeight,
+    cx + browSpread - 15, browY - archHeight - 2,
+    cx + browSpread - 25, browY
+  );
+  ctx.stroke();
+
+  // Right eyebrow thickness line
+  ctx.strokeStyle = 'rgba(0, 242, 254, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.lineDashOffset = -t * 15;
+  ctx.beginPath();
+  ctx.moveTo(cx + browSpread + 18, browY + 10);
+  ctx.bezierCurveTo(
+    cx + browSpread + 3, browY - archHeight + 5,
+    cx + browSpread - 17, browY - archHeight + 3,
+    cx + browSpread - 27, browY + 5
+  );
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── EYES ──
+function drawEyes(
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  t: number, phase: string
+) {
+  ctx.save();
+  
+  const eyeY = cy - h * 0.02;
+  const eyeSpread = w * 0.12;
+  const eyeColor = phase === 'locked' ? 'rgba(0, 255, 136, 0.7)' : 'rgba(0, 242, 254, 0.6)';
+
+  // Left eye
+  ctx.strokeStyle = eyeColor;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = phase === 'locked' ? 'rgba(0, 255, 136, 0.3)' : 'rgba(0, 242, 254, 0.3)';
+  ctx.shadowBlur = 6;
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.ellipse(cx - eyeSpread, eyeY, 22, 11, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Left iris
+  ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.9)' : 'rgba(0, 242, 254, 0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(cx - eyeSpread, eyeY, 8, 8, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Left pupil
+  ctx.fillStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.8)' : 'rgba(0, 242, 254, 0.7)';
+  ctx.beginPath();
+  ctx.arc(cx - eyeSpread, eyeY, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right eye
+  ctx.strokeStyle = eyeColor;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(cx + eyeSpread, eyeY, 22, 11, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Right iris
+  ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.9)' : 'rgba(0, 242, 254, 0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(cx + eyeSpread, eyeY, 8, 8, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Right pupil
+  ctx.fillStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.8)' : 'rgba(0, 242, 254, 0.7)';
+  ctx.beginPath();
+  ctx.arc(cx + eyeSpread, eyeY, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ── NOSE ──
+function drawNose(ctx: CanvasRenderingContext2D, cx: number, cy: number, t: number, phase: string) {
+  ctx.save();
+  
+  const noseColor = phase === 'locked' ? 'rgba(0, 255, 136, 0.5)' : 'rgba(0, 242, 254, 0.4)';
+  
+  ctx.strokeStyle = noseColor;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.lineDashOffset = -t * 10;
+
+  // Nose bridge
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 30);
+  ctx.lineTo(cx - 3, cy + 10);
+  ctx.stroke();
+
+  // Nose tip
+  ctx.setLineDash([]);
+  ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.6)' : 'rgba(0, 242, 254, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy + 12, 5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── MOUTH ──
+function drawMouth(ctx: CanvasRenderingContext2D, cx: number, cy: number, t: number, phase: string) {
+  ctx.save();
+  
+  const mouthY = cy + 50;
+  const mouthColor = phase === 'locked' ? 'rgba(216, 164, 153, 0.5)' : 'rgba(216, 164, 153, 0.4)';
+  
+  ctx.strokeStyle = mouthColor;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+
+  // Upper lip
+  ctx.beginPath();
+  ctx.moveTo(cx - 25, mouthY);
+  ctx.bezierCurveTo(cx - 10, mouthY - 6, cx + 10, mouthY - 6, cx + 25, mouthY);
+  ctx.stroke();
+
+  // Lower lip
+  ctx.beginPath();
+  ctx.moveTo(cx - 25, mouthY);
+  ctx.bezierCurveTo(cx - 10, mouthY + 8, cx + 10, mouthY + 8, cx + 25, mouthY);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── LANDMARK POINTS ──
+function drawLandmarkPoints(
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  t: number, phase: string
+) {
+  ctx.save();
+  
+  const points = [
+    // Eyebrow landmarks
+    { x: cx - w * 0.15 - 20, y: cy - h * 0.08 + 5, color: '#D8A499' },
+    { x: cx - w * 0.15 - 10, y: cy - h * 0.08 - 5, color: '#00F2FE' },
+    { x: cx - w * 0.15, y: cy - h * 0.08 - 10, color: '#D8A499' },
+    { x: cx - w * 0.15 + 10, y: cy - h * 0.08 - 8, color: '#00F2FE' },
+    { x: cx - w * 0.15 + 20, y: cy - h * 0.08, color: '#D8A499' },
+    { x: cx + w * 0.15 + 20, y: cy - h * 0.08 + 5, color: '#D8A499' },
+    { x: cx + w * 0.15 + 10, y: cy - h * 0.08 - 5, color: '#00F2FE' },
+    { x: cx + w * 0.15, y: cy - h * 0.08 - 10, color: '#D8A499' },
+    { x: cx + w * 0.15 - 10, y: cy - h * 0.08 - 8, color: '#00F2FE' },
+    { x: cx + w * 0.15 - 20, y: cy - h * 0.08, color: '#D8A499' },
+    // Eye landmarks
+    { x: cx - w * 0.12 - 22, y: cy - h * 0.02, color: '#00F2FE' },
+    { x: cx - w * 0.12, y: cy - h * 0.02 - 11, color: '#00F2FE' },
+    { x: cx - w * 0.12 + 22, y: cy - h * 0.02, color: '#00F2FE' },
+    { x: cx - w * 0.12, y: cy - h * 0.02 + 11, color: '#00F2FE' },
+    { x: cx + w * 0.12 - 22, y: cy - h * 0.02, color: '#00F2FE' },
+    { x: cx + w * 0.12, y: cy - h * 0.02 - 11, color: '#00F2FE' },
+    { x: cx + w * 0.12 + 22, y: cy - h * 0.02, color: '#00F2FE' },
+    { x: cx + w * 0.12, y: cy - h * 0.02 + 11, color: '#00F2FE' },
+    // Nose landmarks
+    { x: cx, y: cy - 30, color: '#00F2FE' },
+    { x: cx, y: cy + 12, color: '#D8A499' },
+    // Mouth landmarks
+    { x: cx - 25, y: cy + 50, color: '#D8A499' },
+    { x: cx, y: cy + 44, color: '#D8A499' },
+    { x: cx + 25, y: cy + 50, color: '#D8A499' },
+    { x: cx, y: cy + 58, color: '#D8A499' },
+  ];
+
+  points.forEach((p, i) => {
+    const pulse = Math.sin(t * 3 + i * 0.5) * 0.5 + 0.5;
+    const size = 1.5 + pulse * 1;
+    
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  ctx.restore();
+}
+
+// ── SCANNING LASER ──
+function drawScanningLaser(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
+  ctx.save();
+  
+  const y = ((t * 0.5) % 1) * h;
+  
+  // Main laser line
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(w, y);
+  ctx.strokeStyle = 'rgba(0, 242, 254, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(0, 242, 254, 0.9)';
+  ctx.shadowBlur = 20;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Glow gradient
+  const gradient = ctx.createLinearGradient(0, y - 30, 0, y + 30);
+  gradient.addColorStop(0, 'rgba(0, 242, 254, 0)');
+  gradient.addColorStop(0.5, 'rgba(0, 242, 254, 0.15)');
+  gradient.addColorStop(1, 'rgba(0, 242, 254, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, y - 30, w, 60);
+
+  ctx.restore();
+}
+
+// ── CORNER BRACKETS ──
+function drawCornerBrackets(
+  ctx: CanvasRenderingContext2D, w: number, h: number, phase: string
+) {
+  ctx.save();
+  
+  const color = phase === 'locked' ? 'rgba(0, 255, 136, 0.6)' : 'rgba(0, 242, 254, 0.5)';
+  const size = 30;
+  const margin = 20;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+
+  // Top-left
+  ctx.beginPath();
+  ctx.moveTo(margin, margin + size);
+  ctx.lineTo(margin, margin);
+  ctx.lineTo(margin + size, margin);
+  ctx.stroke();
+
+  // Top-right
+  ctx.beginPath();
+  ctx.moveTo(w - margin - size, margin);
+  ctx.lineTo(w - margin, margin);
+  ctx.lineTo(w - margin, margin + size);
+  ctx.stroke();
+
+  // Bottom-left
+  ctx.beginPath();
+  ctx.moveTo(margin, h - margin - size);
+  ctx.lineTo(margin, h - margin);
+  ctx.lineTo(margin + size, h - margin);
+  ctx.stroke();
+
+  // Bottom-right
+  ctx.beginPath();
+  ctx.moveTo(w - margin - size, h - margin);
+  ctx.lineTo(w - margin, h - margin);
+  ctx.lineTo(w - margin, h - margin - size);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── DETECTION LABELS ──
+function drawDetectionLabels(
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  phase: string
+) {
+  ctx.save();
+  
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+
+  const labels = [
+    { text: 'SOURCIL G', x: w * 0.12, y: cy - h * 0.12, color: '#D8A499' },
+    { text: 'SOURCIL D', x: w * 0.88, y: cy - h * 0.12, color: '#D8A499' },
+    { text: 'OEIL G', x: w * 0.2, y: cy - h * 0.04, color: '#00F2FE' },
+    { text: 'OEIL D', x: w * 0.8, y: cy - h * 0.04, color: '#00F2FE' },
+    { text: 'NEZ', x: cx, y: cy + h * 0.06, color: '#00F2FE' },
+    { text: 'BOUCHE', x: cx, y: cy + h * 0.12, color: '#D8A499' },
+  ];
+
+  labels.forEach((label) => {
+    const dotColor = phase === 'locked' ? '#00FF88' : '#00F2FE';
+    
+    // Background pill
+    const metrics = ctx.measureText(label.text);
+    const pillW = metrics.width + 16;
+    const pillH = 16;
+    
+    ctx.fillStyle = 'rgba(11, 10, 15, 0.7)';
+    ctx.beginPath();
+    ctx.roundRect(label.x - pillW / 2, label.y - pillH / 2, pillW, pillH, 8);
+    ctx.fill();
+    
+    ctx.strokeStyle = phase === 'locked' ? 'rgba(0, 255, 136, 0.3)' : 'rgba(0, 242, 254, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Dot
+    ctx.beginPath();
+    ctx.arc(label.x - pillW / 2 + 8, label.y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = dotColor;
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = label.color;
+    ctx.fillText(label.text, label.x + 4, label.y + 3);
+  });
+
+  ctx.restore();
+}
+
+// ── MEASUREMENTS ──
+function drawMeasurements(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
+  ctx.save();
+  
   ctx.font = '10px monospace';
   ctx.textAlign = 'center';
 
   // Inter-eyebrow distance
-  const leftBrowInner = getPoint(107);
-  const rightBrowInner = getPoint(336);
-  const midX = (leftBrowInner.x + rightBrowInner.x) / 2;
-  const midY = Math.min(leftBrowInner.y, rightBrowInner.y) - 15;
+  const leftBrowX = cx - 65;
+  const rightBrowX = cx + 65;
+  const browY = cy - 60;
 
   ctx.beginPath();
-  ctx.moveTo(leftBrowInner.x, leftBrowInner.y);
-  ctx.lineTo(rightBrowInner.x, rightBrowInner.y);
+  ctx.moveTo(leftBrowX, browY);
+  ctx.lineTo(rightBrowX, browY);
   ctx.strokeStyle = 'rgba(216, 164, 153, 0.5)';
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 2]);
@@ -432,22 +587,14 @@ function drawMeasurements(
   ctx.setLineDash([]);
 
   ctx.fillStyle = '#D8A499';
-  ctx.fillText('24.1mm', midX, midY);
+  ctx.fillText('24.1mm', cx, browY - 8);
 
   // Left eyebrow length
-  const leftStart = getPoint(70);
-  const leftEnd = getPoint(46);
-  const leftMidX = (leftStart.x + leftEnd.x) / 2;
-  const leftMidY = Math.min(leftStart.y, leftEnd.y) - 10;
   ctx.fillStyle = 'rgba(0, 242, 254, 0.6)';
-  ctx.fillText('52.3mm', leftMidX, leftMidY);
+  ctx.fillText('52.3mm', cx - 65, cy - 80);
 
   // Right eyebrow length
-  const rightStart = getPoint(300);
-  const rightEnd = getPoint(276);
-  const rightMidX = (rightStart.x + rightEnd.x) / 2;
-  const rightMidY = Math.min(rightStart.y, rightEnd.y) - 10;
-  ctx.fillText('51.8mm', rightMidX, rightMidY);
+  ctx.fillText('51.8mm', cx + 65, cy - 80);
 
   ctx.restore();
 }

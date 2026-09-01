@@ -4,6 +4,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BiometricMeasurements } from '@/types';
 import { calculateBiometricsFromLandmarks, DEFAULT_BIOMETRICS } from '@/lib/biometrics';
 import { Camera, RefreshCw, CheckCircle2, Sparkles, ChevronRight, ChevronDown, ChevronUp, Zap, HelpCircle, Eye, RotateCcw, Scan, Crosshair } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Dynamic import of FaceMeshCanvas to avoid SSR issues
+const FaceMeshCanvas = dynamic(() => import('./FaceMeshCanvas'), { ssr: false });
 
 interface BiometricScannerStepProps {
   onCompleted: (biometrics: BiometricMeasurements, snapshots?: { front?: string; left?: string; right?: string }) => void;
@@ -24,6 +28,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   const [showGuide, setShowGuide] = useState<boolean>(false);
   const [scanMode, setScanMode] = useState<'idle' | 'camera' | 'simulation'>('idle');
   const [detectionPhase, setDetectionPhase] = useState<'none' | 'detecting' | 'locked'>('none');
+  const [faceDetected, setFaceDetected] = useState<boolean>(false);
   
   const [snapshots, setSnapshots] = useState<{ front?: string; left?: string; right?: string }>({});
   const [liveBiometrics, setLiveBiometrics] = useState<BiometricMeasurements>(DEFAULT_BIOMETRICS);
@@ -76,9 +81,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       }
       setIsCameraActive(true);
       setScanMode('camera');
-      // Start detection animation after camera is active
-      setTimeout(() => setDetectionPhase('detecting'), 500);
-      setTimeout(() => setDetectionPhase('locked'), 2000);
     } catch (err: any) {
       console.warn('Camera access denied or unavailable:', err);
       setCameraError('Caméra non disponible. Utilisez le mode Simulation IA.');
@@ -98,6 +100,19 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     startCamera();
     return () => stopCamera();
   }, []);
+
+  // Handle landmarks detected by FaceMeshCanvas
+  const handleLandmarksDetected = useCallback((landmarks: any[]) => {
+    if (landmarks && landmarks.length > 0) {
+      setFaceDetected(true);
+      if (detectionPhase === 'none') {
+        setDetectionPhase('detecting');
+        setTimeout(() => setDetectionPhase('locked'), 1500);
+      }
+    } else {
+      setFaceDetected(false);
+    }
+  }, [detectionPhase]);
 
   const captureSnapshot = useCallback(() => {
     if (!canvasRef.current) return '';
@@ -217,302 +232,10 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     setScanProgress(0);
     setScanMode('idle');
     setDetectionPhase('none');
+    setFaceDetected(false);
     setSnapshots({});
     setLiveBiometrics(DEFAULT_BIOMETRICS);
   };
-
-  // SVG Face Mesh Paths — Professional anatomical tracing
-  const FaceMeshOverlay = () => (
-    <svg 
-      className="absolute inset-0 w-full h-full" 
-      viewBox="0 0 400 600" 
-      fill="none"
-      style={{ zIndex: 20 }}
-    >
-      <defs>
-        <filter id="glow-cyan">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-        <filter id="glow-rose">
-          <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-        <linearGradient id="sweep-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#00F2FE" stopOpacity="0"/>
-          <stop offset="50%" stopColor="#00F2FE" stopOpacity="0.8"/>
-          <stop offset="100%" stopColor="#00F2FE" stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-
-      {/* ── FACE OVAL CONTOUR ── */}
-      <path 
-        d="M200 80 C260 80 320 130 330 200 C340 270 330 340 310 390 C290 440 250 480 200 490 C150 480 110 440 90 390 C70 340 60 270 70 200 C80 130 140 80 200 80Z"
-        stroke={detectionPhase === 'none' ? 'rgba(0,242,254,0.15)' : '#00F2FE'}
-        strokeWidth={detectionPhase === 'locked' ? '2' : '1.5'}
-        strokeDasharray={detectionPhase === 'detecting' ? '8 4' : 'none'}
-        filter="url(#glow-cyan)"
-        className={detectionPhase === 'detecting' ? 'animate-pulse' : ''}
-        style={{ 
-          opacity: detectionPhase === 'none' ? 0.2 : 0.7,
-          transition: 'all 0.5s ease'
-        }}
-      />
-
-      {/* ── LEFT EYEBROW (detailed curve) ── */}
-      <path 
-        d="M120 195 C130 178 148 170 165 172 C182 174 195 182 200 190"
-        stroke={detectionPhase !== 'none' ? '#D8A499' : 'rgba(216,164,153,0.2)'}
-        strokeWidth={detectionPhase === 'locked' ? '3' : '2'}
-        strokeLinecap="round"
-        filter="url(#glow-rose)"
-        className={detectionPhase === 'detecting' ? 'animate-pulse' : ''}
-        style={{ opacity: detectionPhase === 'none' ? 0.2 : 0.9, transition: 'all 0.5s ease' }}
-      />
-      {/* Left eyebrow thickness line */}
-      <path 
-        d="M122 200 C132 185 150 178 167 180 C184 182 196 190 200 197"
-        stroke="rgba(0,242,254,0.4)"
-        strokeWidth="1"
-        strokeDasharray="4 3"
-        strokeLinecap="round"
-        style={{ opacity: detectionPhase !== 'none' ? 0.6 : 0 }}
-      />
-
-      {/* ── RIGHT EYEBROW (detailed curve) ── */}
-      <path 
-        d="M280 190 C285 182 298 174 315 172 C332 170 350 178 360 195"
-        stroke={detectionPhase !== 'none' ? '#D8A499' : 'rgba(216,164,153,0.2)'}
-        strokeWidth={detectionPhase === 'locked' ? '3' : '2'}
-        strokeLinecap="round"
-        filter="url(#glow-rose)"
-        className={detectionPhase === 'detecting' ? 'animate-pulse' : ''}
-        style={{ opacity: detectionPhase === 'none' ? 0.2 : 0.9, transition: 'all 0.5s ease' }}
-      />
-      {/* Right eyebrow thickness line */}
-      <path 
-        d="M280 197 C284 190 296 182 313 180 C330 178 348 185 358 200"
-        stroke="rgba(0,242,254,0.4)"
-        strokeWidth="1"
-        strokeDasharray="4 3"
-        strokeLinecap="round"
-        style={{ opacity: detectionPhase !== 'none' ? 0.6 : 0 }}
-      />
-
-      {/* ── LEFT EYE (almond shape) ── */}
-      <ellipse 
-        cx="165" cy="225" rx="28" ry="14"
-        stroke={detectionPhase !== 'none' ? '#00F2FE' : 'rgba(0,242,254,0.15)'}
-        strokeWidth="1.5"
-        strokeDasharray={detectionPhase === 'detecting' ? '6 3' : 'none'}
-        filter="url(#glow-cyan)"
-        style={{ opacity: detectionPhase === 'none' ? 0.15 : 0.7, transition: 'all 0.5s ease' }}
-      />
-      {/* Left iris */}
-      <circle 
-        cx="165" cy="225" r="8"
-        stroke={detectionPhase !== 'none' ? '#00F2FE' : 'rgba(0,242,254,0.1)'}
-        strokeWidth="1"
-        fill="none"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.5 }}
-      />
-      {/* Left pupil */}
-      <circle 
-        cx="165" cy="225" r="3"
-        fill={detectionPhase !== 'none' ? 'rgba(0,242,254,0.6)' : 'rgba(0,242,254,0.1)'}
-      />
-
-      {/* ── RIGHT EYE (almond shape) ── */}
-      <ellipse 
-        cx="235" cy="225" rx="28" ry="14"
-        stroke={detectionPhase !== 'none' ? '#00F2FE' : 'rgba(0,242,254,0.15)'}
-        strokeWidth="1.5"
-        strokeDasharray={detectionPhase === 'detecting' ? '6 3' : 'none'}
-        filter="url(#glow-cyan)"
-        style={{ opacity: detectionPhase === 'none' ? 0.15 : 0.7, transition: 'all 0.5s ease' }}
-      />
-      {/* Right iris */}
-      <circle 
-        cx="235" cy="225" r="8"
-        stroke={detectionPhase !== 'none' ? '#00F2FE' : 'rgba(0,242,254,0.1)'}
-        strokeWidth="1"
-        fill="none"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.5 }}
-      />
-      {/* Right pupil */}
-      <circle 
-        cx="235" cy="225" r="3"
-        fill={detectionPhase !== 'none' ? 'rgba(0,242,254,0.6)' : 'rgba(0,242,254,0.1)'}
-      />
-
-      {/* ── NOSE BRIDGE ── */}
-      <path 
-        d="M200 210 L198 250 L192 275 C195 280 200 282 205 280 L208 275 L202 250 Z"
-        stroke={detectionPhase !== 'none' ? 'rgba(0,242,254,0.5)' : 'rgba(0,242,254,0.1)'}
-        strokeWidth="1"
-        strokeDasharray={detectionPhase === 'detecting' ? '4 2' : 'none'}
-        fill="none"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.6, transition: 'all 0.5s ease' }}
-      />
-      {/* Nose tip */}
-      <circle 
-        cx="200" cy="280" r="4"
-        stroke={detectionPhase !== 'none' ? '#D8A499' : 'rgba(216,164,153,0.1)'}
-        strokeWidth="1.5"
-        fill="none"
-        filter="url(#glow-rose)"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.7 }}
-      />
-
-      {/* ── MOUTH (lips contour) ── */}
-      <path 
-        d="M170 330 C180 322 190 318 200 320 C210 318 220 322 230 330"
-        stroke={detectionPhase !== 'none' ? '#D8A499' : 'rgba(216,164,153,0.1)'}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        fill="none"
-        filter="url(#glow-rose)"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.6, transition: 'all 0.5s ease' }}
-      />
-      {/* Lower lip */}
-      <path 
-        d="M170 330 C180 340 190 345 200 346 C210 345 220 340 230 330"
-        stroke={detectionPhase !== 'none' ? 'rgba(216,164,153,0.5)' : 'rgba(216,164,153,0.1)'}
-        strokeWidth="1"
-        strokeLinecap="round"
-        fill="none"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.5 }}
-      />
-
-      {/* ── JAWLINE ── */}
-      <path 
-        d="M100 280 C110 350 140 420 200 450 C260 420 290 350 300 280"
-        stroke={detectionPhase !== 'none' ? 'rgba(0,242,254,0.3)' : 'rgba(0,242,254,0.08)'}
-        strokeWidth="1"
-        strokeDasharray={detectionPhase === 'detecting' ? '6 4' : '4 4'}
-        fill="none"
-        style={{ opacity: detectionPhase === 'none' ? 0.1 : 0.4, transition: 'all 0.5s ease' }}
-      />
-
-      {/* ── LANDMARK POINTS (468 MediaPipe style) ── */}
-      {/* Eyebrow landmarks - Left */}
-      {[
-        { x: 120, y: 195 }, { x: 135, y: 183 }, { x: 150, y: 176 },
-        { x: 165, y: 174 }, { x: 180, y: 178 }, { x: 195, y: 188 },
-        { x: 122, y: 200 }, { x: 137, y: 190 }, { x: 152, y: 184 },
-        { x: 167, y: 182 }, { x: 182, y: 186 }, { x: 196, y: 195 },
-      ].map((p, i) => (
-        <circle key={`leb-${i}`} cx={p.x} cy={p.y} r="2"
-          fill={i % 2 === 0 ? '#00F2FE' : '#D8A499'}
-          filter={i % 2 === 0 ? 'url(#glow-cyan)' : 'url(#glow-rose)'}
-          className={detectionPhase === 'detecting' ? 'animate-ping' : ''}
-          style={{ 
-            opacity: detectionPhase === 'none' ? 0.15 : 0.9,
-            animationDelay: `${i * 0.08}s`,
-            transition: 'opacity 0.5s ease'
-          }}
-        />
-      ))}
-      {/* Eyebrow landmarks - Right */}
-      {[
-        { x: 280, y: 190 }, { x: 295, y: 180 }, { x: 310, y: 176 },
-        { x: 325, y: 174 }, { x: 340, y: 178 }, { x: 355, y: 190 },
-        { x: 280, y: 197 }, { x: 295, y: 188 }, { x: 310, y: 182 },
-        { x: 325, y: 180 }, { x: 340, y: 184 }, { x: 358, y: 197 },
-      ].map((p, i) => (
-        <circle key={`reb-${i}`} cx={p.x} cy={p.y} r="2"
-          fill={i % 2 === 0 ? '#D8A499' : '#00F2FE'}
-          filter={i % 2 === 0 ? 'url(#glow-rose)' : 'url(#glow-cyan)'}
-          className={detectionPhase === 'detecting' ? 'animate-ping' : ''}
-          style={{ 
-            opacity: detectionPhase === 'none' ? 0.15 : 0.9,
-            animationDelay: `${i * 0.08 + 0.5}s`,
-            transition: 'opacity 0.5s ease'
-          }}
-        />
-      ))}
-      {/* Eye contour landmarks */}
-      {[
-        { x: 137, y: 225 }, { x: 150, y: 218 }, { x: 165, y: 215 },
-        { x: 180, y: 218 }, { x: 193, y: 225 }, { x: 180, y: 232 },
-        { x: 165, y: 235 }, { x: 150, y: 232 },
-        { x: 207, y: 225 }, { x: 220, y: 218 }, { x: 235, y: 215 },
-        { x: 250, y: 218 }, { x: 263, y: 225 }, { x: 250, y: 232 },
-        { x: 235, y: 235 }, { x: 220, y: 232 },
-      ].map((p, i) => (
-        <circle key={`eye-${i}`} cx={p.x} cy={p.y} r="1.5"
-          fill="#00F2FE"
-          filter="url(#glow-cyan)"
-          style={{ 
-            opacity: detectionPhase === 'none' ? 0.1 : 0.7,
-            animationDelay: `${i * 0.05}s`,
-            transition: 'opacity 0.5s ease'
-          }}
-        />
-      ))}
-      {/* Nose landmarks */}
-      {[
-        { x: 200, y: 210 }, { x: 198, y: 230 }, { x: 196, y: 250 },
-        { x: 192, y: 270 }, { x: 200, y: 280 }, { x: 208, y: 270 },
-        { x: 204, y: 250 }, { x: 202, y: 230 },
-      ].map((p, i) => (
-        <circle key={`nose-${i}`} cx={p.x} cy={p.y} r="1.5"
-          fill={i % 2 === 0 ? '#00F2FE' : '#D8A499'}
-          style={{ 
-            opacity: detectionPhase === 'none' ? 0.1 : 0.6,
-            transition: 'opacity 0.5s ease'
-          }}
-        />
-      ))}
-      {/* Mouth landmarks */}
-      {[
-        { x: 170, y: 330 }, { x: 180, y: 324 }, { x: 190, y: 320 },
-        { x: 200, y: 320 }, { x: 210, y: 320 }, { x: 220, y: 324 },
-        { x: 230, y: 330 }, { x: 220, y: 338 }, { x: 210, y: 344 },
-        { x: 200, y: 346 }, { x: 190, y: 344 }, { x: 180, y: 338 },
-      ].map((p, i) => (
-        <circle key={`mouth-${i}`} cx={p.x} cy={p.y} r="1.5"
-          fill="#D8A499"
-          filter="url(#glow-rose)"
-          style={{ 
-            opacity: detectionPhase === 'none' ? 0.1 : 0.7,
-            transition: 'opacity 0.5s ease'
-          }}
-        />
-      ))}
-
-      {/* ── MEASUREMENT LINES (shown when locked) ── */}
-      {detectionPhase === 'locked' && (
-        <>
-          {/* Inter-eyebrow distance line */}
-          <line x1="200" y1="175" x2="200" y2="175" stroke="#D8A499" strokeWidth="1" strokeDasharray="3 2" opacity="0.5">
-            <animate attributeName="x1" from="195" to="195" dur="0.01s" fill="freeze"/>
-          </line>
-          {/* Left eyebrow length measurement */}
-          <line x1="120" y1="192" x2="200" y2="188" stroke="rgba(0,242,254,0.3)" strokeWidth="0.5" strokeDasharray="4 3"/>
-          {/* Right eyebrow length measurement */}
-          <line x1="280" y1="188" x2="360" y2="192" stroke="rgba(0,242,254,0.3)" strokeWidth="0.5" strokeDasharray="4 3"/>
-          
-          {/* Measurement labels */}
-          <text x="155" y="180" fill="#00F2FE" fontSize="8" fontFamily="monospace" opacity="0.7">52.3mm</text>
-          <text x="305" y="180" fill="#00F2FE" fontSize="8" fontFamily="monospace" opacity="0.7">51.8mm</text>
-          <text x="200" y="168" fill="#D8A499" fontSize="8" fontFamily="monospace" textAnchor="middle" opacity="0.7">24.1mm</text>
-        </>
-      )}
-
-      {/* ── SCANNING LASER ── */}
-      {isScanning && (
-        <>
-          <rect x="60" y="0" width="280" height="600" fill="url(#sweep-grad)" opacity="0.15">
-            <animateTransform attributeName="transform" type="translate" values="0,-600;0,600" dur="2s" repeatCount="indefinite"/>
-          </rect>
-          <line x1="60" y1="0" x2="340" y2="0" stroke="#00F2FE" strokeWidth="2" opacity="0.8" filter="url(#glow-cyan)">
-            <animateTransform attributeName="transform" type="translate" values="0,0;0,600" dur="2s" repeatCount="indefinite"/>
-          </line>
-        </>
-      )}
-    </svg>
-  );
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
@@ -552,7 +275,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
                 <span className="w-7 h-7 rounded-full bg-roseGold/10 text-roseGold flex items-center justify-center font-bold text-sm shrink-0">1</span>
                 <div>
                   <p className="font-semibold text-white mb-1">Activez votre caméra</p>
-                  <p>Autorisez l&apos;accès à la caméra. Le traceur holographique va détecter automatiquement vos sourcils, yeux, nez et bouche.</p>
+                  <p>Autorisez l&apos;accès à la caméra. Le traceur holographique détecte en temps réel vos sourcils, yeux, nez et bouche grâce à MediaPipe Face Mesh (468 points).</p>
                 </div>
               </div>
               
@@ -560,15 +283,15 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
                 <span className="w-7 h-7 rounded-full bg-roseGold/10 text-roseGold flex items-center justify-center font-bold text-sm shrink-0">2</span>
                 <div>
                   <p className="font-semibold text-white mb-1">Scannez vos 3 angles</p>
-                  <p>Le scanner capture votre visage de face, puis à gauche, puis à droite pour une analyse 3D complète.</p>
+                  <p>Le scanner capture votre visage de face, puis à gauche, puis à droite pour une analyse 3D complète de vos sourcils.</p>
                 </div>
               </div>
               
               <div className="flex items-start gap-3 p-3 rounded-xl bg-obsidian border border-obsidian-border">
                 <span className="w-7 h-7 rounded-full bg-roseGold/10 text-roseGold flex items-center justify-center font-bold text-sm shrink-0">3</span>
                 <div>
-                  <p className="font-semibold text-white mb-1">Mode Simulation IA</p>
-                  <p>Pas de caméra ? Le mode Simulation IA analyse vos sourcils automatiquement en 3 secondes.</p>
+                  <p className="font-semibold text-white mb-1">Moule personnalisé</p>
+                  <p>Le fichier STL généré est un moule 100% personnalisé basé sur VOS mesures biométriques (longueur, épaisseur, courbure de vos sourcils et forme de votre front).</p>
                 </div>
               </div>
             </div>
@@ -584,15 +307,22 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       <div className="flex items-center justify-center gap-3 mb-4">
         <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-mono ${
           isCameraActive 
-            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+            ? faceDetected 
+              ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+              : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
             : cameraError 
-              ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+              ? 'bg-red-500/10 border border-red-500/30 text-red-400'
               : 'bg-gray-500/10 border border-gray-500/30 text-gray-400'
         }`}>
           <span className={`w-2 h-2 rounded-full ${
-            isCameraActive ? 'bg-emerald-400 animate-pulse' : cameraError ? 'bg-amber-400' : 'bg-gray-400 animate-pulse'
+            isCameraActive 
+              ? faceDetected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'
+              : cameraError ? 'bg-red-400' : 'bg-gray-400 animate-pulse'
           }`} />
-          {isCameraActive ? 'Caméra active' : cameraError ? 'Caméra indisponible' : 'Initialisation...'}
+          {isCameraActive 
+            ? faceDetected ? 'Visage détecté • Tracking actif' : 'Caméra active • Placez votre visage'
+            : cameraError ? 'Caméra indisponible' : 'Initialisation...'
+          }
         </div>
         
         {!isCameraActive && (
@@ -607,19 +337,20 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════
-          MAIN SCANNER VIEWPORT — Camera + Face Mesh Overlay
+          MAIN SCANNER VIEWPORT — Camera + Real Face Mesh Detection
           ═══════════════════════════════════════════════════════════════ */}
       <div className="relative mx-auto w-full max-w-sm sm:max-w-md aspect-[3/4] rounded-3xl bg-obsidian-card border-2 border-roseGold/40 shadow-rose-glow overflow-hidden">
         
         {/* Hidden Canvas for Snapshots */}
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* VIDEO ELEMENT — Always rendered, hidden when no camera */}
+        {/* VIDEO ELEMENT — with data-face-mesh attribute for FaceMeshCanvas to find */}
         <video
           ref={videoRef}
           playsInline
           muted
           autoPlay
+          data-face-mesh="true"
           className={`absolute inset-0 w-full h-full object-cover -scale-x-100 ${isCameraActive ? 'block' : 'hidden'}`}
           style={{ zIndex: 10 }}
         />
@@ -641,14 +372,18 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           </div>
         )}
 
-        {/* FACE MESH SVG OVERLAY — Professional anatomical tracing */}
-        <FaceMeshOverlay />
+        {/* REAL FACE MESH DETECTION CANVAS — MediaPipe powered */}
+        <FaceMeshCanvas
+          isScanning={isScanning}
+          onLandmarksDetected={handleLandmarksDetected}
+          detectionPhase={detectionPhase}
+        />
 
         {/* HOLOGRAPHIC HUD — Top bar */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-[11px] font-mono text-roseGold bg-obsidian/80 backdrop-blur-md p-3 rounded-xl border border-roseGold/20" style={{ zIndex: 30 }}>
           <span className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${isScanning ? 'bg-biometric-cyan animate-ping' : detectionPhase === 'locked' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
-            {isScanning ? 'ANALYSE EN COURS...' : detectionPhase === 'locked' ? 'VISAGE DÉTECTÉ' : 'RECHERCHE DU VISAGE...'}
+            <span className={`w-2.5 h-2.5 rounded-full ${isScanning ? 'bg-biometric-cyan animate-ping' : faceDetected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
+            {isScanning ? 'ANALYSE EN COURS...' : faceDetected ? 'VISAGE DÉTECTÉ' : 'RECHERCHE DU VISAGE...'}
           </span>
           <span className="flex items-center gap-2">
             <Crosshair className="w-3 h-3 text-biometric-cyan" />
@@ -656,35 +391,29 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           </span>
         </div>
 
-        {/* DETECTION STATUS INDICATORS — Around the face */}
-        {detectionPhase !== 'none' && (
+        {/* DETECTION STATUS LABELS — Show when face is detected */}
+        {faceDetected && detectionPhase !== 'none' && (
           <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 25 }}>
-            {/* Left eyebrow detected */}
-            <div className="absolute top-[30%] left-[8%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-roseGold/30 text-[9px] font-mono text-roseGold">
+            <div className="absolute top-[28%] left-[8%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-roseGold/30 text-[9px] font-mono text-roseGold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               SOURCIL G
             </div>
-            {/* Right eyebrow detected */}
-            <div className="absolute top-[30%] right-[8%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-roseGold/30 text-[9px] font-mono text-roseGold">
+            <div className="absolute top-[28%] right-[8%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-roseGold/30 text-[9px] font-mono text-roseGold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               SOURCIL D
             </div>
-            {/* Left eye detected */}
-            <div className="absolute top-[36%] left-[15%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan">
+            <div className="absolute top-[35%] left-[15%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               OEIL G
             </div>
-            {/* Right eye detected */}
-            <div className="absolute top-[36%] right-[15%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan">
+            <div className="absolute top-[35%] right-[15%] flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               OEIL D
             </div>
-            {/* Nose detected */}
             <div className="absolute top-[44%] left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               NEZ
             </div>
-            {/* Mouth detected */}
             <div className="absolute top-[55%] left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian/70 border border-roseGold/30 text-[9px] font-mono text-roseGold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               BOUCHE

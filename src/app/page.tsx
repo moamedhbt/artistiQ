@@ -1,8 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Hero } from '@/components/Hero';
+import { StartupStory } from '@/components/StartupStory';
+import { ProductGallery } from '@/components/ProductGallery';
+import { Testimonials } from '@/components/Testimonials';
+import { FaqSection } from '@/components/FaqSection';
 import { ClientInfoStep } from '@/components/ClientInfoStep';
 import { BiometricScannerStep } from '@/components/BiometricScannerStep';
 import { EyebrowStudioStep } from '@/components/EyebrowStudioStep';
@@ -12,12 +16,13 @@ import { AdminDashboard } from '@/components/AdminDashboard';
 import { ClientInfo, BiometricMeasurements, EyebrowCustomParams, Order } from '@/types';
 import { DEFAULT_BIOMETRICS, DEFAULT_CUSTOM_PARAMS } from '@/lib/biometrics';
 import { saveNewOrder } from '@/lib/storage';
+import { Lock } from 'lucide-react';
 
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
+  const studioRef = useRef<HTMLDivElement>(null);
 
-  // User State
   const [clientInfo, setClientInfo] = useState<ClientInfo>({
     fullName: '',
     phone: '',
@@ -30,17 +35,20 @@ export default function Home() {
   const [customParams, setCustomParams] = useState<EyebrowCustomParams>(DEFAULT_CUSTOM_PARAMS);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  // Step 1 Callback
+  const scrollToStudio = () => {
+    setCurrentStep(1);
+    setTimeout(() => {
+      studioRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   const handleClientInfoNext = (info: ClientInfo) => {
     setClientInfo(info);
     setCurrentStep(2);
+    studioRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Step 2 Callback
-  const handleBiometricsCompleted = (
-    bio: BiometricMeasurements,
-    snapshots?: { front?: string; left?: string; right?: string }
-  ) => {
+  const handleBiometricsCompleted = (bio: BiometricMeasurements) => {
     setBiometrics(bio);
     setCustomParams({
       ...customParams,
@@ -49,15 +57,15 @@ export default function Home() {
       interGapMm: bio.interEyebrowGapMm,
     });
     setCurrentStep(3);
+    studioRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Step 3 Callback
   const handleStudioNext = (params: EyebrowCustomParams) => {
     setCustomParams(params);
     setCurrentStep(4);
+    studioRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Step 4 Callback (Order Creation)
   const handleConfirmOrder = () => {
     const orderId = `ARTISTIQ-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     const newOrder: Order = {
@@ -72,9 +80,9 @@ export default function Home() {
     saveNewOrder(newOrder);
     setCompletedOrder(newOrder);
     setCurrentStep(5);
+    studioRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Reset to Start
   const handleReset = () => {
     setClientInfo({ fullName: '', phone: '', address: '', city: '', notes: '' });
     setBiometrics(DEFAULT_BIOMETRICS);
@@ -84,77 +92,107 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-obsidian text-gray-100">
+    <div className="min-h-screen flex flex-col bg-pearl text-charcoal font-sans selection:bg-roseGold-light">
       
-      {/* Header / Navbar */}
+      {/* Header Navbar */}
       <Navbar
         currentStep={currentStep}
         totalSteps={5}
-        onNavigateStep={(step) => setCurrentStep(step)}
-        onToggleAdmin={() => setIsAdminOpen(!isAdminOpen)}
-        isAdminOpen={isAdminOpen}
+        onNavigateStep={(step) => {
+          setCurrentStep(step);
+          if (step > 0) studioRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }}
       />
 
-      {/* Main Content Area */}
+      {/* Main Page Storytelling */}
       <main className="flex-1">
-        {currentStep === 0 && (
-          <Hero onStartScan={() => setCurrentStep(1)} />
-        )}
+        
+        {/* Hero Banner */}
+        <Hero onStartScan={scrollToStudio} />
 
-        {currentStep === 1 && (
-          <ClientInfoStep
-            initialInfo={clientInfo}
-            onNext={handleClientInfoNext}
-          />
-        )}
+        {/* Our Startup Story */}
+        <StartupStory />
 
-        {currentStep === 2 && (
-          <BiometricScannerStep
-            onCompleted={handleBiometricsCompleted}
-            onBack={() => setCurrentStep(1)}
-          />
-        )}
+        {/* Product Collection Gallery & 3D Interactive Viewer */}
+        <ProductGallery />
 
-        {currentStep === 3 && (
-          <EyebrowStudioStep
-            biometrics={biometrics}
-            initialParams={customParams}
-            onNext={handleStudioNext}
-            onBack={() => setCurrentStep(2)}
-          />
-        )}
+        {/* Interactive Studio Anchor Section */}
+        <div ref={studioRef} className="py-12 bg-gradient-to-b from-pearl-dark/20 via-pearl to-pearl border-t border-pearl-border">
+          {currentStep === 1 && (
+            <ClientInfoStep
+              initialInfo={clientInfo}
+              onNext={handleClientInfoNext}
+            />
+          )}
 
-        {currentStep === 4 && (
-          <ThreeDPreviewStep
-            clientInfo={clientInfo}
-            biometrics={biometrics}
-            customParams={customParams}
-            onConfirmOrder={handleConfirmOrder}
-            onBack={() => setCurrentStep(3)}
-          />
-        )}
+          {currentStep === 2 && (
+            <BiometricScannerStep
+              onCompleted={handleBiometricsCompleted}
+              onBack={() => setCurrentStep(1)}
+            />
+          )}
 
-        {currentStep === 5 && completedOrder && (
-          <OrderConfirmationStep
-            order={completedOrder}
-            onReset={handleReset}
-          />
-        )}
+          {currentStep === 3 && (
+            <EyebrowStudioStep
+              biometrics={biometrics}
+              initialParams={customParams}
+              onNext={handleStudioNext}
+              onBack={() => setCurrentStep(2)}
+            />
+          )}
+
+          {currentStep === 4 && (
+            <ThreeDPreviewStep
+              clientInfo={clientInfo}
+              biometrics={biometrics}
+              customParams={customParams}
+              onConfirmOrder={handleConfirmOrder}
+              onBack={() => setCurrentStep(3)}
+            />
+          )}
+
+          {currentStep === 5 && completedOrder && (
+            <OrderConfirmationStep
+              order={completedOrder}
+              onReset={handleReset}
+            />
+          )}
+        </div>
+
+        {/* Client Reviews */}
+        <Testimonials />
+
+        {/* FAQ */}
+        <FaqSection />
+
       </main>
 
-      {/* Admin Panel Modal Overlay */}
+      {/* Secret Admin Modal */}
       {isAdminOpen && (
         <AdminDashboard onClose={() => setIsAdminOpen(false)} />
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-obsidian-border bg-obsidian-card/50 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400 font-mono">
-          <p>© 2026 artistiQ. Tous droits réservés. Haute Technologie Biométrique.</p>
+      {/* Luxury Footer */}
+      <footer className="border-t border-pearl-border bg-pearl-dark/60 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-charcoal-muted font-serif italic">
+          <div>
+            <p className="font-bold text-charcoal font-sans text-sm not-italic mb-1">artistiQ Haute Beauté</p>
+            <p>© 2026. Tous droits réservés. Replicated Brow Technology.</p>
+          </div>
+          
           <div className="flex items-center gap-6">
             <span>Paiement à la Livraison</span>
-            <span>Impression 3D Sur-Mesure</span>
-            <span>Silicone Pharmacie Biocompatible</span>
+            <span>Tampon de Précision Sur-Mesure</span>
+            <span>Verre Dépoli & Silicone Cosmétique</span>
+
+            {/* Secret Admin Lock */}
+            <button
+              onClick={() => setIsAdminOpen(true)}
+              className="p-1 text-gray-400 hover:text-roseGold transition-colors"
+              title="Accès Privé Atelier"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </footer>

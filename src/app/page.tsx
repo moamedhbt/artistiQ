@@ -3,14 +3,15 @@
 import React, { useState, useRef } from 'react';
 import { Header } from '@/components/Header';
 import { MainHeroSection } from '@/components/MainHeroSection';
-import { ProductionCycle } from '@/components/ProductionCycle';
-import { BeautyCollectionGrid } from '@/components/BeautyCollectionGrid';
-import { StartupStory } from '@/components/StartupStory';
+import { TrustBadges } from '@/components/TrustBadges';
+import { BeforeAfterSlider } from '@/components/BeforeAfterSlider';
+import { HowItWorksDetail } from '@/components/HowItWorksDetail';
 import { ClientInfoStep } from '@/components/ClientInfoStep';
 import { BiometricScannerStep } from '@/components/BiometricScannerStep';
 import { EyebrowStudioStep } from '@/components/EyebrowStudioStep';
 import { ThreeDPreviewStep } from '@/components/ThreeDPreviewStep';
 import { OrderConfirmationStep } from '@/components/OrderConfirmationStep';
+import { StickyMobileBar } from '@/components/StickyMobileBar';
 import { AdminDashboard } from '@/components/AdminDashboard';
 import { ClientInfo, BiometricMeasurements, EyebrowCustomParams, Order } from '@/types';
 import { DEFAULT_BIOMETRICS, DEFAULT_CUSTOM_PARAMS } from '@/lib/biometrics';
@@ -20,10 +21,9 @@ import { Lock } from 'lucide-react';
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
-  
+
   const studioRef = useRef<HTMLDivElement>(null);
-  const processRef = useRef<HTMLDivElement>(null);
-  const productsRef = useRef<HTMLDivElement>(null);
+  const howItWorksRef = useRef<HTMLDivElement>(null);
 
   const [clientInfo, setClientInfo] = useState<ClientInfo>({
     fullName: '',
@@ -40,10 +40,8 @@ export default function Home() {
   const scrollToSection = (sectionId: string) => {
     if (sectionId === 'hero') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (sectionId === 'processus') {
-      processRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else if (sectionId === 'produits') {
-      productsRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (sectionId === 'processus' || sectionId === 'comment-ca-marche') {
+      howItWorksRef.current?.scrollIntoView({ behavior: 'smooth' });
     } else if (sectionId === 'commander') {
       setCurrentStep(1);
       setTimeout(() => {
@@ -65,6 +63,10 @@ export default function Home() {
       lengthMm: bio.leftEyebrowLengthMm,
       archHeightMm: bio.leftArchHeightMm,
       interGapMm: bio.interEyebrowGapMm,
+      originalThicknessMm: 6.5,
+      originalLengthMm: bio.leftEyebrowLengthMm,
+      originalArchHeightMm: bio.leftArchHeightMm,
+      originalInterGapMm: bio.interEyebrowGapMm,
     });
     setCurrentStep(3);
     studioRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -102,7 +104,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-pearl text-charcoal font-sans selection:bg-roseGold-light">
+    <div className="min-h-screen flex flex-col bg-pearl text-charcoal font-sans selection:bg-roseGold-light pb-16 md:pb-0">
       
       {/* Header Navigation */}
       <Header onNavigate={scrollToSection} />
@@ -110,27 +112,25 @@ export default function Home() {
       {/* Main Sections */}
       <main className="flex-1">
         
-        {/* Main Hero Banner: "PRÉCISION, PURITÉ ET LA FINITION PARFAITE." */}
+        {/* Hero Section */}
         <MainHeroSection
           onOrderClick={() => scrollToSection('commander')}
-          onExploreProcess={() => scrollToSection('processus')}
+          onExploreProcess={() => scrollToSection('comment-ca-marche')}
         />
 
-        {/* Le Cycle de Production (Dispenser Nozzle, UV Tunnel, Laser Marker, Final Cube) */}
-        <div ref={processRef}>
-          <ProductionCycle />
+        {/* Trust Pillars */}
+        <TrustBadges />
+
+        {/* Before / After Slider */}
+        <BeforeAfterSlider />
+
+        {/* How It Works */}
+        <div ref={howItWorksRef}>
+          <HowItWorksDetail onStartClick={() => scrollToSection('commander')} />
         </div>
 
-        {/* La Collection Beauté & Maquillage */}
-        <div ref={productsRef}>
-          <BeautyCollectionGrid onOrderStamp={() => scrollToSection('commander')} />
-        </div>
-
-        {/* Storytelling & Startup Vision */}
-        <StartupStory />
-
-        {/* Interactive Custom Stamp Order Studio */}
-        <div ref={studioRef} id="commander" className="py-16 bg-gradient-to-b from-pearl-dark/30 via-pearl to-pearl border-t border-pearl-border">
+        {/* Interactive Custom Stamp Studio (Steps 1 to 5) */}
+        <div ref={studioRef} id="commander" className="py-16 bg-gradient-to-b from-pearl-dark/20 via-pearl to-pearl border-t border-pearl-border">
           {currentStep === 1 && (
             <ClientInfoStep
               initialInfo={clientInfo}
@@ -174,7 +174,10 @@ export default function Home() {
 
       </main>
 
-      {/* Secret Admin Modal */}
+      {/* Sticky Mobile Bar for Smartphones */}
+      <StickyMobileBar onOrderClick={() => scrollToSection('commander')} />
+
+      {/* Secret Admin Dashboard */}
       {isAdminOpen && (
         <AdminDashboard onClose={() => setIsAdminOpen(false)} />
       )}
@@ -190,7 +193,7 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <span>Paiement à la Livraison</span>
             <span>Tampon de Précision Sur-Mesure</span>
-            <span>Verre Dépoli & Silicone Cosmétique</span>
+            <span>Silicone Cosmétique</span>
 
             {/* Secret Admin Lock */}
             <button

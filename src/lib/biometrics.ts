@@ -27,6 +27,10 @@ export const DEFAULT_CUSTOM_PARAMS: EyebrowCustomParams = {
   microGrooveDensity: 3,
   stencilThicknessMm: 2.0,
   moldDepthMm: 4.0,
+  originalThicknessMm: 6.5,
+  originalLengthMm: 52.0,
+  originalArchHeightMm: 13.5,
+  originalInterGapMm: 22.5,
 };
 
 export function calculateBiometricsFromLandmarks(
@@ -81,8 +85,16 @@ export function calculateBiometricsFromLandmarks(
   };
 }
 
+/**
+ * Generates SVG path string for Eyebrow outline based on thickness, arch, length
+ */
 export function generateEyebrowSvgPath(
-  params: EyebrowCustomParams,
+  params: {
+    thicknessMm: number;
+    lengthMm: number;
+    archHeightMm: number;
+    tailDropMm?: number;
+  },
   side: 'left' | 'right' = 'left',
   widthPx: number = 200,
   heightPx: number = 100
@@ -93,7 +105,7 @@ export function generateEyebrowSvgPath(
   const len = params.lengthMm * scale;
   const thick = params.thicknessMm * scale;
   const arch = params.archHeightMm * scale * 0.4;
-  const tailDrop = params.tailDropMm * scale;
+  const tailDrop = (params.tailDropMm || 4.0) * scale;
 
   const startX = isLeft ? 15 : widthPx - 15;
   const dir = isLeft ? 1 : -1;

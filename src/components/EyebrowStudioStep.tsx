@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { EyebrowCustomParams, BiometricMeasurements } from '@/types';
 import { generateEyebrowSvgPath } from '@/lib/biometrics';
-import { Sliders, Sparkles, ArrowRight, RotateCcw, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Sliders, Sparkles, ArrowRight, RotateCcw, CheckCircle2, Layers } from 'lucide-react';
 
 interface EyebrowStudioStepProps {
   biometrics: BiometricMeasurements;
@@ -18,16 +18,29 @@ export const EyebrowStudioStep: React.FC<EyebrowStudioStepProps> = ({
   onNext,
   onBack,
 }) => {
-  const [params, setParams] = useState<EyebrowCustomParams>(initialParams);
+  const [params, setParams] = useState<EyebrowCustomParams>({
+    ...initialParams,
+    originalThicknessMm: initialParams.originalThicknessMm || 6.5,
+    originalLengthMm: initialParams.originalLengthMm || biometrics.leftEyebrowLengthMm,
+    originalArchHeightMm: initialParams.originalArchHeightMm || biometrics.leftArchHeightMm,
+    originalInterGapMm: initialParams.originalInterGapMm || biometrics.interEyebrowGapMm,
+  });
 
-  const handleResetToNatural = () => {
+  const handleResetToOriginal = () => {
     setParams({
       ...params,
-      thicknessMm: 6.5,
-      lengthMm: biometrics.leftEyebrowLengthMm,
-      archHeightMm: biometrics.leftArchHeightMm,
-      interGapMm: biometrics.interEyebrowGapMm,
+      thicknessMm: params.originalThicknessMm || 6.5,
+      lengthMm: params.originalLengthMm || biometrics.leftEyebrowLengthMm,
+      archHeightMm: params.originalArchHeightMm || biometrics.leftArchHeightMm,
+      interGapMm: params.originalInterGapMm || biometrics.interEyebrowGapMm,
     });
+  };
+
+  const originalParams = {
+    thicknessMm: params.originalThicknessMm || 6.5,
+    lengthMm: params.originalLengthMm || biometrics.leftEyebrowLengthMm,
+    archHeightMm: params.originalArchHeightMm || biometrics.leftArchHeightMm,
+    tailDropMm: 4.0,
   };
 
   return (
@@ -36,58 +49,39 @@ export const EyebrowStudioStep: React.FC<EyebrowStudioStepProps> = ({
       {/* Header */}
       <div className="text-center space-y-2 mb-8">
         <span className="text-xs font-serif italic tracking-widest text-roseGold uppercase px-3.5 py-1 rounded-full bg-roseGold-light border border-roseGold/20">
-          Étape 3 sur 4 • Empreinte Naturelle Numérisée
+          Étape 3 sur 4 • Superposition & Personnalisation (Calque)
         </span>
         <h2 className="text-3xl font-serif font-bold text-charcoal">
-          Voici le Tracé Exact de Votre Regard
+          Ajustement Précis de Votre Empreinte
         </h2>
         <p className="text-sm text-charcoal-muted font-serif italic max-w-xl mx-auto">
-          Voici la réplique exacte de vos sourcils telle qu'analysée par le miroir digital. Vous pouvez ajuster la finesse du maquillage si vous le souhaitez.
+          Comparez en direct la ligne naturelle de vos sourcils (pointillés) avec vos retouches de maquillage personnalisées (ligne pleine).
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* Left: Replicated Natural Brow Banner & Micro Sliders */}
+        {/* Left: Sliders */}
         <div className="lg:col-span-7 space-y-6">
           
-          {/* Exact Replica Card Banner */}
-          <div className="p-6 rounded-3xl bg-pearl-card border border-roseGold shadow-soft-luxury space-y-3 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-serif italic font-bold text-roseGold uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-roseGold" /> Réplique 1:1 de Votre Regard
-              </span>
-              <span className="text-[10px] font-sans px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-medium">
-                Symétrie {biometrics.facialSymmetryIndex}%
-              </span>
-            </div>
-            <h3 className="font-serif font-bold text-lg text-charcoal">
-              Empreinte Morphologique Individuelle
-            </h3>
-            <p className="text-xs text-charcoal-muted font-serif italic leading-relaxed">
-              Votre tampon est façonné pour correspondre 1:1 à la ligne naturelle de vos sourcils, garantissant un maquillage parfaitement identique et symétrique chaque matin.
-            </p>
-          </div>
-
-          {/* Micro Adjustments */}
           <div className="p-6 rounded-3xl bg-pearl-card border border-pearl-border space-y-5 shadow-soft-luxury">
             <div className="flex items-center justify-between border-b border-pearl-border pb-3">
               <h3 className="font-serif font-bold text-sm text-charcoal flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-roseGold" />
-                Ajustement de l'Intensité du Maquillage
+                Réglage de la Finesse & des Contours
               </h3>
               <button
-                onClick={handleResetToNatural}
+                onClick={handleResetToOriginal}
                 className="text-[11px] text-roseGold hover:underline flex items-center gap-1 font-serif italic"
               >
-                <RotateCcw className="w-3 h-3" /> Remettre à zéro
+                <RotateCcw className="w-3 h-3" /> Revenir à l'original
               </button>
             </div>
 
             {/* Thickness */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-charcoal font-medium">Épaisseur du Tracé (Fin ou Généreux)</span>
+                <span className="text-charcoal font-medium">Épaisseur (Générosité du tracé)</span>
                 <span className="font-serif text-roseGold font-bold">{params.thicknessMm.toFixed(1)} mm</span>
               </div>
               <input
@@ -104,7 +98,7 @@ export const EyebrowStudioStep: React.FC<EyebrowStudioStepProps> = ({
             {/* Arch Height */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-charcoal font-medium">Hauteur de l'Arcade Naturelle</span>
+                <span className="text-charcoal font-medium">Hauteur d'Arcade (Courbure/Lift)</span>
                 <span className="font-serif text-roseGold font-bold">{params.archHeightMm.toFixed(1)} mm</span>
               </div>
               <input
@@ -121,7 +115,7 @@ export const EyebrowStudioStep: React.FC<EyebrowStudioStepProps> = ({
             {/* Length */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-charcoal font-medium">Longueur de la Ligne</span>
+                <span className="text-charcoal font-medium">Longueur Totale</span>
                 <span className="font-serif text-roseGold font-bold">{params.lengthMm.toFixed(1)} mm</span>
               </div>
               <input
@@ -135,47 +129,106 @@ export const EyebrowStudioStep: React.FC<EyebrowStudioStepProps> = ({
               />
             </div>
 
+            {/* Inter Gap */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-charcoal font-medium">Écartement Central (Inter-sourcils)</span>
+                <span className="font-serif text-roseGold font-bold">{params.interGapMm.toFixed(1)} mm</span>
+              </div>
+              <input
+                type="range"
+                min={18.0}
+                max={32.0}
+                step={0.1}
+                value={params.interGapMm}
+                onChange={(e) => setParams({ ...params, interGapMm: parseFloat(e.target.value) })}
+                className="w-full accent-roseGold bg-pearl-dark rounded-lg h-2 cursor-pointer"
+              />
+            </div>
+
           </div>
 
         </div>
 
-        {/* Right Preview */}
+        {/* Right Preview: TRACING PAPER ("CALQUE") DOUBLE LAYER CANVAS */}
         <div className="lg:col-span-5 sticky top-24 space-y-6">
           <div className="p-6 rounded-3xl bg-pearl-card border border-pearl-border shadow-soft-luxury space-y-4 text-center">
             
             <div className="flex items-center justify-between text-xs text-charcoal border-b border-pearl-border pb-3 font-serif italic">
-              <span>Rendu de l'Empreinte</span>
-              <span>Aperçu Répliqué</span>
+              <span className="flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-roseGold" />
+                Effet Calque Comparatif
+              </span>
+              <span className="text-roseGold font-semibold">Superposition</span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-pearl border border-pearl-border relative overflow-hidden flex flex-col items-center justify-center min-h-[200px]">
+            {/* Double Layer SVG Canvas */}
+            <div className="p-4 rounded-2xl bg-pearl border border-pearl-border relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
               
-              <p className="text-[11px] font-serif italic text-roseGold mb-2">
-                Votre Tracé Exact Répliqué
-              </p>
+              <div className="w-full flex items-center justify-center gap-4 py-4 relative">
+                
+                {/* Left Eyebrow Double Overlay */}
+                <div className="relative w-36 h-20">
+                  {/* CALQUE 1: ORIGINAL BROW (Dotted Line) */}
+                  <svg viewBox="0 0 160 80" className="absolute inset-0 w-full h-full text-charcoal/40 fill-none stroke-current">
+                    <path
+                      d={generateEyebrowSvgPath(originalParams, 'left', 160, 80)}
+                      strokeWidth="2"
+                      strokeDasharray="4 3"
+                      strokeLinecap="round"
+                    />
+                  </svg>
 
-              <div className="w-full flex items-center justify-center gap-4 py-4">
-                <svg viewBox="0 0 160 80" className="w-36 h-20 text-roseGold fill-roseGold/20 stroke-roseGold">
-                  <path
-                    d={generateEyebrowSvgPath(params, 'left', 160, 80)}
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                  {/* CALQUE 2: MODIFIED CUSTOM BROW (Solid Line) */}
+                  <svg viewBox="0 0 160 80" className="absolute inset-0 w-full h-full text-roseGold fill-roseGold/20 stroke-roseGold">
+                    <path
+                      d={generateEyebrowSvgPath(params, 'left', 160, 80)}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
 
                 <div className="text-[10px] font-serif italic text-charcoal-muted border-x border-pearl-border px-1 py-4">
                   Axe
                 </div>
 
-                <svg viewBox="0 0 160 80" className="w-36 h-20 text-roseGold fill-roseGold/20 stroke-roseGold">
-                  <path
-                    d={generateEyebrowSvgPath(params, 'right', 160, 80)}
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                {/* Right Eyebrow Double Overlay */}
+                <div className="relative w-36 h-20">
+                  {/* CALQUE 1: ORIGINAL BROW (Dotted Line) */}
+                  <svg viewBox="0 0 160 80" className="absolute inset-0 w-full h-full text-charcoal/40 fill-none stroke-current">
+                    <path
+                      d={generateEyebrowSvgPath(originalParams, 'right', 160, 80)}
+                      strokeWidth="2"
+                      strokeDasharray="4 3"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+
+                  {/* CALQUE 2: MODIFIED CUSTOM BROW (Solid Line) */}
+                  <svg viewBox="0 0 160 80" className="absolute inset-0 w-full h-full text-roseGold fill-roseGold/20 stroke-roseGold">
+                    <path
+                      d={generateEyebrowSvgPath(params, 'right', 160, 80)}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+
+              </div>
+
+              {/* Legend for Tracing Overlay */}
+              <div className="w-full pt-3 border-t border-pearl-border/80 flex items-center justify-around text-[10px] font-serif italic text-charcoal-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 bg-charcoal/50 border-t border-dashed" />
+                  Originale Scannée
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-1 bg-roseGold rounded-full" />
+                  Votre Retouche
+                </span>
               </div>
 
             </div>
@@ -183,11 +236,7 @@ export const EyebrowStudioStep: React.FC<EyebrowStudioStepProps> = ({
             <div className="p-3.5 rounded-2xl bg-pearl border border-pearl-border text-left space-y-1.5 text-xs text-charcoal">
               <div className="flex items-center gap-2 text-emerald-600">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>100% fidèle à votre ligne naturelle</span>
-              </div>
-              <div className="flex items-center gap-2 text-emerald-600">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Adaptation parfaite à l'os de votre arcade</span>
+                <span>Modifications enregistrées pour la confection 3D</span>
               </div>
             </div>
 

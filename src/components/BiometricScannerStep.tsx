@@ -68,18 +68,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     return () => stopCamera();
   }, []);
 
-  // Handle face status from FaceMeshCanvas
-  const handleFaceStatus = useCallback((status: 'searching' | 'detected' | 'positioned') => {
-    setFaceStatus(status);
-    if (status === 'positioned' && phase === 'detecting') {
-      setPhase('positioned');
-      // Auto-start scan after 1 second
-      setTimeout(() => {
-        startScan();
-      }, 1000);
-    }
-  }, [phase]);
-
   // Capture snapshot
   const capture = useCallback(() => {
     if (!canvasRef.current || !videoRef.current) return '';
@@ -93,6 +81,47 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     }
     return '';
   }, []);
+
+  // Handle face status from FaceMeshCanvas
+  const handleFaceStatus = useCallback((status: 'searching' | 'detected' | 'positioned') => {
+    setFaceStatus(status);
+    if (status === 'positioned' && phase === 'detecting') {
+      setPhase('positioned');
+      // Auto-start scan directly (bypass phase check)
+      setTimeout(() => {
+        setPhase('scanning');
+        setCurrentAngle('front');
+        setProgress(0);
+
+        let p = 0;
+        const interval = setInterval(() => {
+          p += 2;
+          setProgress(p);
+
+          if (p === 33) {
+            setSnapshots(prev => ({ ...prev, front: capture() }));
+            setCurrentAngle('left');
+          } else if (p === 66) {
+            setSnapshots(prev => ({ ...prev, left: capture() }));
+            setCurrentAngle('right');
+          } else if (p >= 100) {
+            clearInterval(interval);
+            setSnapshots(prev => ({ ...prev, right: capture() }));
+            
+            const computed = calculateBiometricsFromLandmarks(
+              { x: 200, y: 200 }, { x: 440, y: 200 },
+              { x: 210, y: 160 }, { x: 260, y: 145 },
+              { x: 310, y: 162 }, { x: 330, y: 162 },
+              { x: 380, y: 145 }, { x: 430, y: 160 },
+              14.5, 14.3
+            );
+            setBiometrics(computed);
+            setPhase('completed');
+          }
+        }, 30);
+      }, 1000);
+    }
+  }, [phase, capture]);
 
   // Start scan
   const startScan = () => {
@@ -139,9 +168,30 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       setFaceStatus('positioned');
       setPhase('positioned');
       
-      // Auto-start scan after 0.5 second
+      // Auto-start scan directly
       setTimeout(() => {
-        startScan();
+        setPhase('scanning');
+        setCurrentAngle('front');
+        
+        let p = 0;
+        const interval = setInterval(() => {
+          p += 3;
+          setProgress(p);
+          if (p === 33) setCurrentAngle('left');
+          if (p === 66) setCurrentAngle('right');
+          if (p >= 100) {
+            clearInterval(interval);
+            const computed = calculateBiometricsFromLandmarks(
+              { x: 200, y: 200 }, { x: 440, y: 200 },
+              { x: 210, y: 160 }, { x: 260, y: 145 },
+              { x: 310, y: 162 }, { x: 330, y: 162 },
+              { x: 380, y: 145 }, { x: 430, y: 160 },
+              14.2, 14.1
+            );
+            setBiometrics(computed);
+            setPhase('completed');
+          }
+        }, 30);
       }, 500);
     }, 1000);
   };

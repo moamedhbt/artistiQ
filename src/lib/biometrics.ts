@@ -1,66 +1,8 @@
-import { EyebrowStyleOption, EyebrowCustomParams, BiometricMeasurements } from '@/types';
-
-export const EYEBROW_STYLES: EyebrowStyleOption[] = [
-  {
-    id: 'naturel',
-    name: 'Naturel Élégant',
-    subtitle: 'Harmonie & Douceur',
-    description: 'Ajusté sur l’arcade naturelle avec une courbure très douce, idéal pour un regard quotidien raffiné.',
-    baseThicknessMm: 6.5,
-    baseArchHeightMm: 12.0,
-    baseLengthMm: 52.0,
-    curveFactor: 0.15,
-    tag: 'Recommandé IA',
-  },
-  {
-    id: 'arque',
-    name: 'Arqué Haute Couture',
-    subtitle: 'Raffinement & Sophistication',
-    description: 'Une arcade nettement définie qui rehausse le regard et structure les traits du visage avec élégance.',
-    baseThicknessMm: 7.0,
-    baseArchHeightMm: 16.5,
-    baseLengthMm: 55.0,
-    curveFactor: 0.35,
-    tag: 'Haute Couture',
-  },
-  {
-    id: 'bold',
-    name: 'Bold Glamour',
-    subtitle: 'Affirmé & Densité',
-    description: 'Lignes plus denses et affirmation du caractère, idéal pour un maquillage structuré et intense.',
-    baseThicknessMm: 8.5,
-    baseArchHeightMm: 14.0,
-    baseLengthMm: 54.0,
-    curveFactor: 0.22,
-    tag: 'Tendance 2026',
-  },
-  {
-    id: 'droit',
-    name: 'Droit Moderne',
-    subtitle: 'Ligne Épurée & Jeunesse',
-    description: 'Style contemporain à faible arche, adoucissant les expressions et donnant un effet lissant naturel.',
-    baseThicknessMm: 6.8,
-    baseArchHeightMm: 9.5,
-    baseLengthMm: 50.0,
-    curveFactor: 0.08,
-    tag: 'Moderne',
-  },
-  {
-    id: 'soft_feather',
-    name: 'Micro-Feather Soft',
-    subtitle: 'Micro-sculpture Poil à Poil',
-    description: 'Conçu avec micro-fentes ultra-précises pour un rendu poil à poil bluffant de naturel.',
-    baseThicknessMm: 7.2,
-    baseArchHeightMm: 13.5,
-    baseLengthMm: 53.0,
-    curveFactor: 0.25,
-    tag: 'Précision Ultime',
-  },
-];
+import { EyebrowCustomParams, BiometricMeasurements } from '@/types';
 
 export const DEFAULT_BIOMETRICS: BiometricMeasurements = {
   interPupillaryPx: 240,
-  scalePxToMm: 0.2625, // 240px * 0.2625 = ~63mm average IPD
+  scalePxToMm: 0.2625,
   leftEyeWidthMm: 31.5,
   rightEyeWidthMm: 31.2,
   interEyebrowGapMm: 22.5,
@@ -76,7 +18,7 @@ export const DEFAULT_BIOMETRICS: BiometricMeasurements = {
 };
 
 export const DEFAULT_CUSTOM_PARAMS: EyebrowCustomParams = {
-  styleId: 'naturel',
+  styleId: 'empreinte_naturelle',
   thicknessMm: 6.5,
   lengthMm: 52.0,
   archHeightMm: 13.5,
@@ -87,9 +29,6 @@ export const DEFAULT_CUSTOM_PARAMS: EyebrowCustomParams = {
   moldDepthMm: 4.0,
 };
 
-/**
- * Calculates real-world millimeter dimensions from pixel landmarks
- */
 export function calculateBiometricsFromLandmarks(
   pupilLeft: { x: number; y: number },
   pupilRight: { x: number; y: number },
@@ -106,7 +45,6 @@ export function calculateBiometricsFromLandmarks(
   const dy = pupilRight.y - pupilLeft.y;
   const ipdPx = Math.sqrt(dx * dx + dy * dy);
   
-  // Average human IPD (Inter-pupillary distance) is ~63mm
   const scale = ipdPx > 0 ? 63.0 / ipdPx : 0.2625;
 
   const gapPx = Math.abs(rightBrowHead.x - leftBrowHead.x);
@@ -130,22 +68,19 @@ export function calculateBiometricsFromLandmarks(
     scalePxToMm: parseFloat(scale.toFixed(4)),
     leftEyeWidthMm: 31.5,
     rightEyeWidthMm: 31.5,
-    interEyebrowGapMm: Math.max(16, Math.min(32, interGapMm)),
-    leftEyebrowLengthMm: Math.max(40, Math.min(65, leftLengthMm)),
-    rightEyebrowLengthMm: Math.max(40, Math.min(65, rightLengthMm)),
-    leftArchHeightMm: Math.max(8, Math.min(22, leftArchHeightMm)),
-    rightArchHeightMm: Math.max(8, Math.min(22, rightArchHeightMm)),
+    interEyebrowGapMm: Math.max(18, Math.min(28, interGapMm)),
+    leftEyebrowLengthMm: Math.max(45, Math.min(60, leftLengthMm)),
+    rightEyebrowLengthMm: Math.max(45, Math.min(60, rightLengthMm)),
+    leftArchHeightMm: Math.max(10, Math.min(18, leftArchHeightMm)),
+    rightArchHeightMm: Math.max(10, Math.min(18, rightArchHeightMm)),
     templeCurvatureLeftDeg: parseFloat(templeLeftAngle.toFixed(1)),
     templeCurvatureRightDeg: parseFloat(templeRightAngle.toFixed(1)),
     foreheadCurvatureRadiusMm: 78.5,
-    facialSymmetryIndex: Math.max(85, Math.min(99.8, symmetry)),
+    facialSymmetryIndex: Math.max(92, Math.min(99.6, symmetry)),
     scanTimestamp: new Date().toISOString(),
   };
 }
 
-/**
- * Generates SVG path definition string for rendering eyebrow stencil cutout
- */
 export function generateEyebrowSvgPath(
   params: EyebrowCustomParams,
   side: 'left' | 'right' = 'left',
@@ -153,7 +88,7 @@ export function generateEyebrowSvgPath(
   heightPx: number = 100
 ): string {
   const isLeft = side === 'left';
-  const scale = widthPx / 80; // 80mm reference width
+  const scale = widthPx / 80;
   
   const len = params.lengthMm * scale;
   const thick = params.thicknessMm * scale;
@@ -178,7 +113,6 @@ export function generateEyebrowSvgPath(
   const archBottomX = archX;
   const archBottomY = archY + thick * 0.8;
 
-  // Cubic bezier path representing eyebrow outline
   return `
     M ${headTopX} ${headTopY}
     C ${startX + dir * (len * 0.3)} ${headTopY - arch * 0.5},

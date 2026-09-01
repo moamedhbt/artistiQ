@@ -73,6 +73,10 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     setFaceStatus(status);
     if (status === 'positioned' && phase === 'detecting') {
       setPhase('positioned');
+      // Auto-start scan after 1 second
+      setTimeout(() => {
+        startScan();
+      }, 1000);
     }
   }, [phase]);
 
@@ -125,7 +129,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     }, 30);
   };
 
-  // Simulation mode
+  // Simulation mode (fully automatic)
   const runSimulation = () => {
     setPhase('detecting');
     setProgress(0);
@@ -135,29 +139,9 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       setFaceStatus('positioned');
       setPhase('positioned');
       
+      // Auto-start scan after 0.5 second
       setTimeout(() => {
-        setPhase('scanning');
-        setCurrentAngle('front');
-        
-        let p = 0;
-        const interval = setInterval(() => {
-          p += 3;
-          setProgress(p);
-          if (p === 33) setCurrentAngle('left');
-          if (p === 66) setCurrentAngle('right');
-          if (p >= 100) {
-            clearInterval(interval);
-            const computed = calculateBiometricsFromLandmarks(
-              { x: 200, y: 200 }, { x: 440, y: 200 },
-              { x: 210, y: 160 }, { x: 260, y: 145 },
-              { x: 310, y: 162 }, { x: 330, y: 162 },
-              { x: 380, y: 145 }, { x: 430, y: 160 },
-              14.2, 14.1
-            );
-            setBiometrics(computed);
-            setPhase('completed');
-          }
-        }, 30);
+        startScan();
       }, 500);
     }, 1000);
   };
@@ -319,17 +303,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       {/* ACTION BUTTONS */}
       <div className="mt-8 space-y-4">
         
-        {phase === 'positioned' && (
-          <button onClick={startScan}
-            className="group relative w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3 overflow-hidden"
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"/>
-            <Zap className="w-6 h-6 relative z-10"/>
-            <span className="relative z-10">Lancer le Scan Biométrique</span>
-            <Sparkles className="w-5 h-5 relative z-10 animate-pulse"/>
-          </button>
-        )}
-
         {phase === 'scanning' && (
           <div className="text-center space-y-3">
             <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-biometric-cyan/10 border border-biometric-cyan/30 text-biometric-cyan">

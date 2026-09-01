@@ -3,84 +3,48 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BiometricMeasurements } from '@/types';
 import { calculateBiometricsFromLandmarks, DEFAULT_BIOMETRICS } from '@/lib/biometrics';
-import { Camera, RefreshCw, CheckCircle2, Sparkles, ChevronRight, ChevronDown, ChevronUp, Zap, HelpCircle, Eye, RotateCcw, Scan, Crosshair, ArrowLeft, ArrowRight } from 'lucide-react';
-import dynamic from 'next/dynamic';
-
-const FaceMeshCanvas = dynamic(() => import('./FaceMeshCanvas'), { ssr: false });
+import { Camera, RefreshCw, CheckCircle2, Sparkles, ChevronRight, ChevronDown, ChevronUp, Zap, HelpCircle, Eye, RotateCcw, Scan, Crosshair } from 'lucide-react';
 
 interface BiometricScannerStepProps {
   onCompleted: (biometrics: BiometricMeasurements, snapshots?: { front?: string; left?: string; right?: string }) => void;
   onBack: () => void;
 }
 
-type ScanPhase = 'idle' | 'detecting' | 'positioned' | 'scanning-left' | 'scanning-right' | 'scanning-complete' | 'completed';
+type ScanPhase = 'idle' | 'detecting' | 'positioned' | 'scanning' | 'completed';
 
 export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   onCompleted,
   onBack,
 }) => {
-  const [scanPhase, setScanPhase] = useState<ScanPhase>('idle');
-  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [phase, setPhase] = useState<ScanPhase>('idle');
+  const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [scanProgress, setScanProgress] = useState<number>(0);
-  const [showGuide, setShowGuide] = useState<boolean>(false);
-  const [faceDetected, setFaceDetected] = useState<boolean>(false);
-  const [currentInstruction, setCurrentInstruction] = useState<string>('');
+  const [progress, setProgress] = useState(0);
+  const [showGuide, setShowGuide] = useState(false);
+  const [currentAngle, setCurrentAngle] = useState<'front' | 'left' | 'right'>('front');
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [laserY, setLaserY] = useState(0);
   
   const [snapshots, setSnapshots] = useState<{ front?: string; left?: string; right?: string }>({});
-  const [liveBiometrics, setLiveBiometrics] = useState<BiometricMeasurements>(DEFAULT_BIOMETRICS);
+  const [biometrics, setBiometrics] = useState<BiometricMeasurements>(DEFAULT_BIOMETRICS);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const laserRef = useRef<number>(0);
 
-  // Phase descriptions
-  const phaseInfo: Record<ScanPhase, { title: string; instruction: string; sub: string; color: string }> = {
-    idle: {
-      title: 'Initialisation du Scanner',
-      instruction: 'Placez votre visage dans le cadre holographique.',
-      sub: 'Le scanner va détecter automatiquement votre visage.',
-      color: 'text-gray-400',
-    },
-    detecting: {
-      title: 'Détection en Cours',
-      instruction: 'Restez immobile, détection de votre visage...',
-      sub: 'Analyse des points biométriques en temps réel.',
-      color: 'text-amber-400',
-    },
-    positioned: {
-      title: 'Visage Détecté ✓',
-      instruction: 'Parfait ! Votre visage est bien positionné.',
-      sub: 'Le scanner va analyser vos sourcils sous 3 angles.',
-      color: 'text-emerald-400',
-    },
-    'scanning-left': {
-      title: 'Scan Angle Gauche',
-      instruction: 'Tournez doucement la tête vers votre GAUCHE.',
-      sub: 'Analyse de l\'arcade gauche et de la courbure de la tempe.',
-      color: 'text-biometric-cyan',
-    },
-    'scanning-right': {
-      title: 'Scan Angle Droit',
-      instruction: 'Tournez doucement la tête vers votre DROITE.',
-      sub: 'Analyse de l\'arcade droite et vérification 3D.',
-      color: 'text-biometric-cyan',
-    },
-    'scanning-complete': {
-      title: 'Scan Terminé ✓',
-      instruction: 'Toutes les mesures ont été extraites !',
-      sub: 'Votre empreinte biométrique est prête.',
-      color: 'text-emerald-400',
-    },
-    completed: {
-      title: 'Analyse Biométrique Terminée',
-      instruction: 'Rapport extrait avec succès.',
-      sub: 'Prêt pour la personnalisation en Studio 3D.',
-      color: 'text-emerald-400',
-    },
-  };
+  // Laser animation
+  useEffect(() => {
+    if (phase !== 'scanning') return;
+    const animate = () => {
+      laserRef.current = requestAnimationFrame(animate);
+      setLaserY(prev => (prev + 0.5) % 100);
+    };
+    laserRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(laserRef.current);
+  }, [phase]);
 
-  // Start Camera
+  // Start camera
   const startCamera = async () => {
     setCameraError(null);
     try {
@@ -91,38 +55,31 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
-        };
+        videoRef.current.onloadedmetadata = () => videoRef.current?.play();
       }
-      setIsCameraActive(true);
+      setCameraActive(true);
       
-      // Auto-start detection after camera is active
+      // Auto-detect after 2 seconds
       setTimeout(() => {
-        setScanPhase('detecting');
-        setCurrentInstruction('Détection automatique en cours...');
-      }, 500);
-      
-      // Simulate face detection after 2 seconds
-      setTimeout(() => {
-        setFaceDetected(true);
-        setScanPhase('positioned');
-        setCurrentInstruction('Visage détecté ! Prêt pour le scan.');
-      }, 2500);
+        setPhase('detecting');
+        setTimeout(() => {
+          setFaceDetected(true);
+          setPhase('positioned');
+        }, 1500);
+      }, 1000);
       
     } catch (err: any) {
-      console.warn('Camera error:', err);
-      setCameraError('Caméra non disponible. Utilisez le mode Simulation.');
-      setIsCameraActive(false);
+      setCameraError('Caméra non disponible');
+      setCameraActive(false);
     }
   };
 
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
-    setIsCameraActive(false);
+    setCameraActive(false);
   };
 
   useEffect(() => {
@@ -130,116 +87,76 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     return () => stopCamera();
   }, []);
 
-  // Handle landmarks from FaceMeshCanvas
-  const handleLandmarksDetected = useCallback((landmarks: any[]) => {
-    if (landmarks && landmarks.length > 0 && !faceDetected) {
-      setFaceDetected(true);
-      if (scanPhase === 'detecting') {
-        setScanPhase('positioned');
-      }
-    }
-  }, [faceDetected, scanPhase]);
-
   // Capture snapshot
-  const captureSnapshot = useCallback(() => {
+  const capture = useCallback(() => {
     if (!canvasRef.current || !videoRef.current) return '';
-    const canvas = canvasRef.current;
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
+    const c = canvasRef.current;
+    c.width = videoRef.current.videoWidth || 640;
+    c.height = videoRef.current.videoHeight || 480;
+    const ctx = c.getContext('2d');
     if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.85);
+      ctx.drawImage(videoRef.current, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.85);
     }
     return '';
   }, []);
 
-  // Run scan for a specific angle
-  const runAngleScan = (angle: 'left' | 'right' | 'front') => {
-    setScanProgress(0);
-    let progress = 0;
-    
+  // Run scan
+  const startScan = () => {
+    if (phase !== 'positioned') return;
+    setPhase('scanning');
+    setCurrentAngle('front');
+    setProgress(0);
+
+    let p = 0;
     const interval = setInterval(() => {
-      progress += 2;
-      setScanProgress(progress);
-      
-      if (progress >= 100) {
+      p += 2;
+      setProgress(p);
+
+      if (p === 33) {
+        setSnapshots(prev => ({ ...prev, front: capture() }));
+        setCurrentAngle('left');
+      } else if (p === 66) {
+        setSnapshots(prev => ({ ...prev, left: capture() }));
+        setCurrentAngle('right');
+      } else if (p >= 100) {
         clearInterval(interval);
+        setSnapshots(prev => ({ ...prev, right: capture() }));
         
-        const imgData = captureSnapshot();
-        setSnapshots(prev => ({ ...prev, [angle]: imgData }));
-        
-        if (angle === 'front') {
-          // After front scan, ask for left
-          setTimeout(() => {
-            setScanPhase('scanning-left');
-            setCurrentInstruction('Tournez à GAUCHE...');
-            runAngleScan('left');
-          }, 500);
-        } else if (angle === 'left') {
-          // After left scan, ask for right
-          setTimeout(() => {
-            setScanPhase('scanning-right');
-            setCurrentInstruction('Tournez à DROITE...');
-            runAngleScan('right');
-          }, 500);
-        } else if (angle === 'right') {
-          // After right scan, complete
-          setTimeout(() => {
-            setScanPhase('scanning-complete');
-            setCurrentInstruction('Scan terminé !');
-            
-            // Generate biometrics
-            const computed = calculateBiometricsFromLandmarks(
-              { x: 200, y: 200 }, { x: 440, y: 200 },
-              { x: 210, y: 160 }, { x: 260, y: 145 },
-              { x: 310, y: 162 }, { x: 330, y: 162 },
-              { x: 380, y: 145 }, { x: 430, y: 160 },
-              14.5, 14.3
-            );
-            setLiveBiometrics(computed);
-            
-            // Auto-transition to completed
-            setTimeout(() => {
-              setScanPhase('completed');
-            }, 1000);
-          }, 500);
-        }
+        const computed = calculateBiometricsFromLandmarks(
+          { x: 200, y: 200 }, { x: 440, y: 200 },
+          { x: 210, y: 160 }, { x: 260, y: 145 },
+          { x: 310, y: 162 }, { x: 330, y: 162 },
+          { x: 380, y: 145 }, { x: 430, y: 160 },
+          14.5, 14.3
+        );
+        setBiometrics(computed);
+        setPhase('completed');
       }
     }, 30);
   };
 
-  // Start full scan sequence
-  const startFullScan = () => {
-    if (scanPhase !== 'positioned') return;
-    
-    setScanPhase('scanning-left');
-    setCurrentInstruction('Tournez doucement à GAUCHE...');
-    runAngleScan('left');
-  };
-
-  // Run simulation (no camera)
+  // Simulation mode
   const runSimulation = () => {
-    setScanPhase('detecting');
-    setScanProgress(0);
+    setPhase('detecting');
+    setProgress(0);
     
     setTimeout(() => {
-      setScanPhase('positioned');
       setFaceDetected(true);
-      setScanProgress(33);
+      setPhase('positioned');
       
       setTimeout(() => {
-        setScanPhase('scanning-left');
-        setScanProgress(50);
+        setPhase('scanning');
+        setCurrentAngle('front');
         
-        setTimeout(() => {
-          setScanPhase('scanning-right');
-          setScanProgress(75);
-          
-          setTimeout(() => {
-            setScanPhase('scanning-complete');
-            setScanProgress(100);
-            
+        let p = 0;
+        const interval = setInterval(() => {
+          p += 3;
+          setProgress(p);
+          if (p === 33) setCurrentAngle('left');
+          if (p === 66) setCurrentAngle('right');
+          if (p >= 100) {
+            clearInterval(interval);
             const computed = calculateBiometricsFromLandmarks(
               { x: 200, y: 200 }, { x: 440, y: 200 },
               { x: 210, y: 160 }, { x: 260, y: 145 },
@@ -247,31 +164,27 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
               { x: 380, y: 145 }, { x: 430, y: 160 },
               14.2, 14.1
             );
-            setLiveBiometrics(computed);
-            
-            setTimeout(() => setScanPhase('completed'), 800);
-          }, 800);
-        }, 800);
-      }, 800);
+            setBiometrics(computed);
+            setPhase('completed');
+          }
+        }, 30);
+      }, 500);
     }, 1000);
   };
 
   const handleFinish = () => {
     stopCamera();
-    onCompleted(liveBiometrics, snapshots);
+    onCompleted(biometrics, snapshots);
   };
 
   const handleReset = () => {
-    setScanPhase('idle');
-    setScanProgress(0);
+    setPhase('idle');
+    setProgress(0);
     setFaceDetected(false);
     setSnapshots({});
-    setLiveBiometrics(DEFAULT_BIOMETRICS);
-    setCurrentInstruction('');
+    setBiometrics(DEFAULT_BIOMETRICS);
     startCamera();
   };
-
-  const info = phaseInfo[scanPhase];
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
@@ -279,22 +192,33 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       {/* HEADER */}
       <div className="text-center space-y-3 mb-6">
         <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-mono tracking-wider ${
-          scanPhase === 'completed' || scanPhase === 'scanning-complete'
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(0,255,136,0.15)]'
-            : faceDetected
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : 'bg-biometric-cyan/10 border-biometric-cyan/30 text-biometric-cyan shadow-cyan-glow'
+          phase === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+          faceDetected ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+          'bg-biometric-cyan/10 border-biometric-cyan/30 text-biometric-cyan'
         }`}>
-          <Scan className="w-4 h-4 animate-pulse" />
-          {info.title}
+          <Scan className="w-4 h-4" />
+          {phase === 'idle' && 'Initialisation...'}
+          {phase === 'detecting' && 'Détection en cours...'}
+          {phase === 'positioned' && 'Visage détecté ✓'}
+          {phase === 'scanning' && `Scan ${currentAngle.toUpperCase()}...`}
+          {phase === 'completed' && 'Scan terminé ✓'}
         </div>
+
         <h2 className="text-2xl sm:text-3xl font-serif font-bold text-white">
-          {info.instruction}
+          {phase === 'idle' && 'Placez votre visage dans le cadre'}
+          {phase === 'detecting' && 'Recherche de votre visage...'}
+          {phase === 'positioned' && 'Parfait ! Lancez le scan'}
+          {phase === 'scanning' && currentAngle === 'front' && 'Regardez droit devant'}
+          {phase === 'scanning' && currentAngle === 'left' && 'Tournez à GAUCHE'}
+          {phase === 'scanning' && currentAngle === 'right' && 'Tournez à DROITE'}
+          {phase === 'completed' && 'Empreinte biométrique extraite'}
         </h2>
-        <p className="text-sm text-gray-300">{info.sub}</p>
-        {currentInstruction && (
-          <p className={`text-xs font-mono ${info.color}`}>{currentInstruction}</p>
-        )}
+
+        <p className="text-sm text-gray-300">
+          {phase === 'scanning' && 'Restez immobile pendant l\'analyse'}
+          {phase === 'positioned' && 'Le scanner va analyser vos sourcils sous 3 angles'}
+          {phase === 'completed' && 'Prêt pour la personnalisation en Studio 3D'}
+        </p>
 
         {/* Help Guide */}
         <button
@@ -302,7 +226,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-obsidian-card border border-obsidian-border text-gray-300 text-xs font-medium hover:bg-obsidian-light transition-all"
         >
           <HelpCircle className="w-4 h-4 text-roseGold" />
-          {showGuide ? 'Masquer' : 'Comment ça marche ?'}
+          {showGuide ? 'Masquer' : 'Guide du scanner'}
           {showGuide ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
@@ -310,210 +234,319 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           <div className="max-w-xl mx-auto p-5 rounded-2xl bg-obsidian-card border border-roseGold/20 text-left space-y-3 animate-fade-in">
             <h4 className="font-serif font-bold text-sm text-roseGold flex items-center gap-2">
               <Eye className="w-4 h-4" />
-              Scanner Biométrique Face ID
+              Comment fonctionne le scanner
             </h4>
             <div className="space-y-2 text-xs text-gray-300">
-              <p>1. <strong className="text-white">Détection automatique</strong> — Le scanner détecte votre visage dès l&apos;ouverture de la caméra.</p>
-              <p>2. <strong className="text-white">Positionnement</strong> — Quand le cadre devient vert, votre visage est bien placé.</p>
-              <p>3. <strong className="text-white">Scan 3 angles</strong> — Le système capture face, gauche et droite pour une empreinte complète.</p>
-              <p>4. <strong className="text-white">Moule personnalisé</strong> — Le fichier STL est généré selon VOS mesures (0.1mm de précision).</p>
+              <p>📸 <strong className="text-white">1. Caméra</strong> — Placez votre visage dans l&apos;ovale vert</p>
+              <p>🔄 <strong className="text-white">2. Rotation</strong> — Suivez les instructions pour tourner gauche/droite</p>
+              <p>📊 <strong className="text-white">3. Analyse</strong> — Le système mesure vos sourcils au 0.1mm</p>
+              <p>🖨️ <strong className="text-white">4. Moule</strong> — Un fichier STL personnalisé est généré</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* CAMERA STATUS */}
+      {/* STATUS BAR */}
       <div className="flex items-center justify-center gap-3 mb-4">
         <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-mono ${
-          isCameraActive 
-            ? faceDetected 
-              ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-              : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-            : 'bg-red-500/10 border border-red-500/30 text-red-400'
+          cameraActive ? faceDetected ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+          : 'bg-red-500/10 border border-red-500/30 text-red-400'
         }`}>
-          <span className={`w-2 h-2 rounded-full ${
-            isCameraActive ? faceDetected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse' : 'bg-red-400'
-          }`} />
-          {isCameraActive ? faceDetected ? 'Visage détecté' : 'Recherche...' : 'Caméra off'}
+          <span className={`w-2 h-2 rounded-full ${cameraActive ? faceDetected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse' : 'bg-red-400'}`} />
+          {cameraActive ? faceDetected ? 'Visage détecté' : 'Recherche...' : 'Caméra off'}
         </div>
-        {!isCameraActive && (
+        {!cameraActive && (
           <button onClick={startCamera} className="flex items-center gap-2 px-4 py-2 rounded-full bg-obsidian-card border border-roseGold/30 text-roseGold text-xs font-medium hover:bg-roseGold/10 transition-all">
             <RefreshCw className="w-3 h-3" /> Réessayer
           </button>
         )}
       </div>
 
-      {/* SCANNER VIEWPORT */}
-      <div className="relative mx-auto w-full max-w-sm sm:max-w-md aspect-[3/4] rounded-3xl bg-obsidian-card border-2 overflow-hidden shadow-rose-glow"
+      {/* ═══════════════════════════════════════════════════════════════
+          SCANNER VIEWPORT
+          ═══════════════════════════════════════════════════════════════ */}
+      <div className="relative mx-auto w-full max-w-sm sm:max-w-md aspect-[3/4] rounded-3xl bg-black overflow-hidden"
         style={{
-          borderColor: faceDetected ? 'rgba(0, 255, 136, 0.4)' : 'rgba(216, 164, 153, 0.4)',
-          boxShadow: faceDetected ? '0 0 40px rgba(0, 255, 136, 0.15)' : '0 0 40px rgba(216, 164, 153, 0.15)',
+          border: `2px solid ${faceDetected ? 'rgba(0, 255, 136, 0.5)' : 'rgba(216, 164, 153, 0.4)'}`,
+          boxShadow: faceDetected ? '0 0 40px rgba(0, 255, 136, 0.2)' : '0 0 40px rgba(216, 164, 153, 0.15)',
         }}
       >
         <canvas ref={canvasRef} className="hidden" />
 
+        {/* VIDEO */}
         <video
           ref={videoRef}
           playsInline
           muted
           autoPlay
-          data-face-mesh="true"
-          className={`absolute inset-0 w-full h-full object-cover -scale-x-100 ${isCameraActive ? 'block' : 'hidden'}`}
-          style={{ zIndex: 10 }}
+          className={`absolute inset-0 w-full h-full object-cover -scale-x-100 ${cameraActive ? 'block' : 'hidden'}`}
+          style={{ zIndex: 1 }}
         />
 
-        {!isCameraActive && (
-          <div className="absolute inset-0 bg-gradient-to-b from-obsidian-card via-obsidian to-obsidian-light flex flex-col items-center justify-center p-8 text-center space-y-4" style={{ zIndex: 10 }}>
+        {/* No camera fallback */}
+        {!cameraActive && (
+          <div className="absolute inset-0 bg-gradient-to-b from-obsidian-card to-obsidian flex flex-col items-center justify-center p-8 text-center space-y-4" style={{ zIndex: 1 }}>
             <Camera className="w-16 h-16 text-roseGold animate-pulse" />
             <p className="text-sm text-white font-semibold">{cameraError || 'Initialisation...'}</p>
+            <p className="text-xs text-gray-400">Autorisez l&apos;accès à la caméra</p>
           </div>
         )}
 
-        <FaceMeshCanvas
-          isScanning={scanPhase.startsWith('scanning-')}
-          onLandmarksDetected={handleLandmarksDetected}
-          detectionPhase={faceDetected ? (scanPhase === 'completed' ? 'locked' : 'detecting') : 'none'}
-        />
+        {/* ═══════════════════════════════════════════════════════════════
+            HOLOGRAPHIC OVERLAY (CSS + SVG)
+            ═══════════════════════════════════════════════════════════════ */}
+        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
+          
+          {/* Grid background */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.04]">
+            <defs>
+              <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                <path d="M 30 0 L 0 0 0 30" fill="none" stroke={faceDetected ? '#00FF88' : '#00F2FE'} strokeWidth="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)"/>
+          </svg>
 
-        {/* HUD Top */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-[11px] font-mono bg-obsidian/80 backdrop-blur-md p-3 rounded-xl border border-obsidian-border" style={{ zIndex: 30 }}>
-          <span className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${
-              scanPhase === 'completed' ? 'bg-emerald-400' :
-              faceDetected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'
-            }`} />
-            <span className={faceDetected ? 'text-emerald-400' : 'text-amber-400'}>
-              {scanPhase === 'completed' ? 'SCAN TERMINÉ' : faceDetected ? 'TRACKING ACTIF' : 'RECHERCHE...'}
+          {/* Face oval */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 600">
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+
+            {/* Outer oval */}
+            <ellipse cx="200" cy="270" rx="110" ry="155"
+              fill="none"
+              stroke={faceDetected ? 'rgba(0, 255, 136, 0.6)' : 'rgba(0, 242, 254, 0.4)'}
+              strokeWidth={faceDetected ? '2.5' : '1.5'}
+              strokeDasharray={phase === 'detecting' ? '10 5' : 'none'}
+              filter="url(#glow)"
+            >
+              {phase === 'detecting' && (
+                <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="1s" repeatCount="indefinite"/>
+              )}
+            </ellipse>
+
+            {/* Inner oval */}
+            <ellipse cx="200" cy="270" rx="104" ry="149"
+              fill="none"
+              stroke={faceDetected ? 'rgba(0, 255, 136, 0.2)' : 'rgba(0, 242, 254, 0.15)'}
+              strokeWidth="1"
+              strokeDasharray="4 4"
+            >
+              <animate attributeName="stroke-dashoffset" from="0" to="16" dur="2s" repeatCount="indefinite"/>
+            </ellipse>
+
+            {/* Eyebrow guides */}
+            <path d="M 130 220 Q 150 200 175 210" fill="none" stroke="rgba(216, 164, 153, 0.5)" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M 270 220 Q 250 200 225 210" fill="none" stroke="rgba(216, 164, 153, 0.5)" strokeWidth="2.5" strokeLinecap="round"/>
+
+            {/* Eye guides */}
+            <ellipse cx="165" cy="255" rx="22" ry="10" fill="none" stroke="rgba(0, 242, 254, 0.4)" strokeWidth="1.5"/>
+            <ellipse cx="235" cy="255" rx="22" ry="10" fill="none" stroke="rgba(0, 242, 254, 0.4)" strokeWidth="1.5"/>
+            <circle cx="165" cy="255" r="4" fill="rgba(0, 242, 254, 0.3)"/>
+            <circle cx="235" cy="255" r="4" fill="rgba(0, 242, 254, 0.3)"/>
+
+            {/* Nose guide */}
+            <line x1="200" y1="240" x2="200" y2="290" stroke="rgba(0, 242, 254, 0.2)" strokeWidth="1" strokeDasharray="3 2"/>
+            <circle cx="200" cy="295" r="5" fill="none" stroke="rgba(216, 164, 153, 0.3)" strokeWidth="1"/>
+
+            {/* Mouth guide */}
+            <path d="M 175 330 Q 200 320 225 330" fill="none" stroke="rgba(216, 164, 153, 0.3)" strokeWidth="1.5"/>
+            <path d="M 175 330 Q 200 345 225 330" fill="none" stroke="rgba(216, 164, 153, 0.2)" strokeWidth="1"/>
+
+            {/* Corner brackets */}
+            <path d="M 50 80 L 50 60 L 70 60" fill="none" stroke={faceDetected ? 'rgba(0, 255, 136, 0.5)' : 'rgba(0, 242, 254, 0.4)'} strokeWidth="2" strokeLinecap="round"/>
+            <path d="M 350 80 L 350 60 L 330 60" fill="none" stroke={faceDetected ? 'rgba(0, 255, 136, 0.5)' : 'rgba(0, 242, 254, 0.4)'} strokeWidth="2" strokeLinecap="round"/>
+            <path d="M 50 520 L 50 540 L 70 540" fill="none" stroke={faceDetected ? 'rgba(0, 255, 136, 0.5)' : 'rgba(0, 242, 254, 0.4)'} strokeWidth="2" strokeLinecap="round"/>
+            <path d="M 350 520 L 350 540 L 330 540" fill="none" stroke={faceDetected ? 'rgba(0, 255, 136, 0.5)' : 'rgba(0, 242, 254, 0.4)'} strokeWidth="2" strokeLinecap="round"/>
+
+            {/* Landmark dots */}
+            {[
+              { x: 130, y: 220 }, { x: 150, y: 205 }, { x: 175, y: 210 },
+              { x: 270, y: 220 }, { x: 250, y: 205 }, { x: 225, y: 210 },
+              { x: 165, y: 245 }, { x: 165, y: 265 }, { x: 143, y: 255 }, { x: 187, y: 255 },
+              { x: 235, y: 245 }, { x: 235, y: 265 }, { x: 213, y: 255 }, { x: 257, y: 255 },
+              { x: 200, y: 295 },
+              { x: 175, y: 330 }, { x: 200, y: 325 }, { x: 225, y: 330 },
+            ].map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r="2"
+                fill={i < 6 ? '#D8A499' : '#00F2FE'}
+                opacity={faceDetected ? '0.8' : '0.4'}
+              >
+                <animate attributeName="opacity" values={faceDetected ? '0.6;1;0.6' : '0.2;0.5;0.2'} dur="2s" repeatCount="indefinite" begin={`${i * 0.1}s`}/>
+              </circle>
+            ))}
+
+            {/* Scanning laser */}
+            {phase === 'scanning' && (
+              <>
+                <line x1="60" y1={laserY * 5.4 + 30} x2="340" y2={laserY * 5.4 + 30}
+                  stroke="rgba(0, 242, 254, 0.8)" strokeWidth="2" filter="url(#glow)"
+                />
+                <rect x="60" y={laserY * 5.4 + 10} width="280" height="40" fill="url(#laserGrad)" opacity="0.3"/>
+                <defs>
+                  <linearGradient id="laserGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00F2FE" stopOpacity="0"/>
+                    <stop offset="50%" stopColor="#00F2FE" stopOpacity="0.3"/>
+                    <stop offset="100%" stopColor="#00F2FE" stopOpacity="0"/>
+                  </linearGradient>
+                </defs>
+              </>
+            )}
+
+            {/* Measurement lines (when completed) */}
+            {phase === 'completed' && (
+              <>
+                <line x1="150" y1="205" x2="250" y2="205" stroke="rgba(216, 164, 153, 0.5)" strokeWidth="1" strokeDasharray="3 2"/>
+                <text x="200" y="198" fill="#D8A499" fontSize="10" textAnchor="middle" fontFamily="monospace">24.1mm</text>
+                <text x="150" y="195" fill="rgba(0, 242, 254, 0.6)" fontSize="9" textAnchor="middle" fontFamily="monospace">52.3mm</text>
+                <text x="250" y="195" fill="rgba(0, 242, 254, 0.6)" fontSize="9" textAnchor="middle" fontFamily="monospace">51.8mm</text>
+              </>
+            )}
+          </svg>
+
+          {/* Detection labels */}
+          {faceDetected && (
+            <>
+              <div className="absolute top-[32%] left-[10%] px-2 py-1 rounded-full bg-black/60 border border-roseGold/30 text-[9px] font-mono text-roseGold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/> SOURCIL G
+              </div>
+              <div className="absolute top-[32%] right-[10%] px-2 py-1 rounded-full bg-black/60 border border-roseGold/30 text-[9px] font-mono text-roseGold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/> SOURCIL D
+              </div>
+              <div className="absolute top-[40%] left-[18%] px-2 py-1 rounded-full bg-black/60 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/> OEIL G
+              </div>
+              <div className="absolute top-[40%] right-[18%] px-2 py-1 rounded-full bg-black/60 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/> OEIL D
+              </div>
+              <div className="absolute top-[48%] left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-black/60 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/> NEZ
+              </div>
+              <div className="absolute top-[56%] left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-black/60 border border-roseGold/30 text-[9px] font-mono text-roseGold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/> BOUCHE
+              </div>
+            </>
+          )}
+
+          {/* HUD Top */}
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-[11px] font-mono bg-black/60 backdrop-blur-md p-3 rounded-xl border border-obsidian-border">
+            <span className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${phase === 'completed' ? 'bg-emerald-400' : faceDetected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`}/>
+              <span className={faceDetected ? 'text-emerald-400' : 'text-amber-400'}>
+                {phase === 'completed' ? 'TERMINÉ' : faceDetected ? 'DÉTECTÉ' : 'RECHERCHE'}
+              </span>
             </span>
-          </span>
-          <span className="flex items-center gap-2 text-biometric-cyan">
-            <Crosshair className="w-3 h-3" />
-            468 POINTS
-          </span>
-        </div>
+            <span className="flex items-center gap-2 text-biometric-cyan">
+              <Crosshair className="w-3 h-3"/> 468 POINTS
+            </span>
+          </div>
 
-        {/* Progress Bar */}
-        <div className="absolute bottom-4 left-4 right-4 space-y-2 bg-obsidian/80 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border" style={{ zIndex: 30 }}>
-          <div className="flex items-center justify-between text-xs font-mono text-gray-300">
-            <span>PROGRESSION</span>
-            <span className="text-roseGold font-bold">{scanProgress}%</span>
-          </div>
-          <div className="w-full h-2.5 bg-obsidian rounded-full overflow-hidden border border-obsidian-border">
-            <div className="h-full bg-gradient-to-r from-biometric-cyan via-roseGold to-emerald-400 transition-all duration-300" style={{ width: `${scanProgress}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className={scanPhase === 'positioned' || scanPhase.startsWith('scanning') || scanPhase === 'completed' ? 'text-emerald-400' : 'text-gray-600'}>● Face</span>
-            <span className={scanPhase === 'scanning-left' || scanPhase === 'scanning-right' || scanPhase === 'completed' ? 'text-biometric-cyan' : 'text-gray-600'}>● Gauche</span>
-            <span className={scanPhase === 'scanning-right' || scanPhase === 'completed' ? 'text-biometric-cyan' : 'text-gray-600'}>● Droite</span>
-            <span className={scanPhase === 'completed' ? 'text-emerald-400' : 'text-gray-600'}>● Terminé</span>
+          {/* Progress bar */}
+          <div className="absolute bottom-4 left-4 right-4 space-y-2 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border">
+            <div className="flex items-center justify-between text-xs font-mono text-gray-300">
+              <span>PROGRESSION</span>
+              <span className="text-roseGold font-bold">{progress}%</span>
+            </div>
+            <div className="w-full h-2.5 bg-obsidian rounded-full overflow-hidden border border-obsidian-border">
+              <div className="h-full bg-gradient-to-r from-biometric-cyan via-roseGold to-emerald-400 transition-all duration-300" style={{ width: `${progress}%` }}/>
+            </div>
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className={progress >= 0 ? 'text-emerald-400' : 'text-gray-600'}>● Face</span>
+              <span className={progress >= 33 ? 'text-biometric-cyan' : 'text-gray-600'}>● Gauche</span>
+              <span className={progress >= 66 ? 'text-biometric-cyan' : 'text-gray-600'}>● Droite</span>
+              <span className={progress >= 100 ? 'text-emerald-400' : 'text-gray-600'}>● Terminé</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ACTION BUTTONS */}
+      {/* ═══════════════════════════════════════════════════════════════
+          ACTION BUTTONS
+          ═══════════════════════════════════════════════════════════════ */}
       <div className="mt-8 space-y-4">
-        {scanPhase === 'positioned' && (
-          <>
-            <button
-              onClick={startFullScan}
-              className="group relative w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3 overflow-hidden"
-            >
-              <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-              <Zap className="w-6 h-6 relative z-10" />
-              <span className="relative z-10">Lancer le Scan Biométrique</span>
-              <Sparkles className="w-5 h-5 relative z-10 animate-pulse" />
-            </button>
-            <p className="text-center text-xs text-gray-400 font-mono">
-              Le scanner va capturer 3 angles automatiquement
-            </p>
-          </>
-        )}
-
-        {scanPhase.startsWith('scanning-') && scanPhase !== 'scanning-complete' && (
-          <div className="text-center space-y-3">
-            <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-biometric-cyan/10 border border-biometric-cyan/30 text-biometric-cyan">
-              <Scan className="w-5 h-5 animate-spin" />
-              <span className="font-mono text-sm">Scan en cours... {scanProgress}%</span>
-            </div>
-            <p className="text-xs text-gray-400">Restez immobile et suivez les instructions</p>
-          </div>
-        )}
-
-        {scanPhase === 'scanning-complete' && (
-          <div className="text-center">
-            <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-              <CheckCircle2 className="w-5 h-5" />
-              <span className="font-mono text-sm">Scan terminé avec succès !</span>
-            </div>
-          </div>
-        )}
-
-        {scanPhase === 'completed' && (
-          <button
-            onClick={handleFinish}
-            className="w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+        
+        {phase === 'positioned' && (
+          <button onClick={startScan}
+            className="group relative w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3 overflow-hidden"
           >
-            <CheckCircle2 className="w-6 h-6" />
-            <span>Valider et Personnaliser mon Style 3D</span>
-            <ChevronRight className="w-5 h-5" />
+            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"/>
+            <Zap className="w-6 h-6 relative z-10"/>
+            <span className="relative z-10">Lancer le Scan Biométrique</span>
+            <Sparkles className="w-5 h-5 relative z-10 animate-pulse"/>
           </button>
         )}
 
-        {(scanPhase === 'idle' || scanPhase === 'detecting') && !isCameraActive && (
-          <button
-            onClick={runSimulation}
-            className="w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] transition-all flex items-center justify-center gap-3"
+        {phase === 'scanning' && (
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-biometric-cyan/10 border border-biometric-cyan/30 text-biometric-cyan">
+              <Scan className="w-5 h-5 animate-spin"/>
+              <span className="font-mono text-sm">Scan {currentAngle.toUpperCase()}... {progress}%</span>
+            </div>
+          </div>
+        )}
+
+        {phase === 'completed' && (
+          <button onClick={handleFinish}
+            className="w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3"
           >
-            <Zap className="w-6 h-6" />
+            <CheckCircle2 className="w-6 h-6"/>
+            <span>Valider et Personnaliser mon Style 3D</span>
+            <ChevronRight className="w-5 h-5"/>
+          </button>
+        )}
+
+        {(phase === 'idle' || phase === 'detecting') && !cameraActive && (
+          <button onClick={runSimulation}
+            className="w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow transition-all flex items-center justify-center gap-3"
+          >
+            <Zap className="w-6 h-6"/>
             <span>Scanner IA Express (sans caméra)</span>
           </button>
         )}
 
-        {scanPhase !== 'idle' && scanPhase !== 'detecting' && (
-          <button
-            onClick={handleReset}
+        {phase !== 'idle' && phase !== 'detecting' && (
+          <button onClick={handleReset}
             className="w-full py-3 rounded-xl bg-obsidian border border-obsidian-border text-gray-400 text-xs font-medium hover:bg-obsidian-light hover:text-white transition-all flex items-center justify-center gap-2"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Recommencer
+            <RotateCcw className="w-3.5 h-3.5"/> Recommencer
           </button>
         )}
       </div>
 
       {/* BIOMETRIC RESULTS */}
-      {scanPhase === 'completed' && (
+      {phase === 'completed' && (
         <div className="mt-8 p-6 rounded-3xl bg-obsidian-card border border-roseGold/30 space-y-4 animate-fade-in shadow-rose-glow">
           <div className="flex items-center justify-between border-b border-obsidian-border pb-3">
             <h3 className="font-serif font-bold text-lg text-white flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              Rapport Biométrique 3D
+              <CheckCircle2 className="w-5 h-5 text-emerald-400"/> Rapport Biométrique
             </h3>
-            <span className="text-xs font-mono text-roseGold px-3 py-1 rounded-full bg-roseGold/10 border border-roseGold/20">
-              0.1 MM PRÉCISION
-            </span>
+            <span className="text-xs font-mono text-roseGold px-3 py-1 rounded-full bg-roseGold/10 border border-roseGold/20">0.1mm</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-mono">
             <div className="p-4 rounded-xl bg-obsidian border border-obsidian-border">
               <p className="text-[10px] text-gray-400 mb-1">Inter-Sourcils</p>
-              <p className="text-lg font-bold text-roseGold">{liveBiometrics.interEyebrowGapMm} mm</p>
+              <p className="text-lg font-bold text-roseGold">{biometrics.interEyebrowGapMm} mm</p>
             </div>
             <div className="p-4 rounded-xl bg-obsidian border border-obsidian-border">
               <p className="text-[10px] text-gray-400 mb-1">Longueur</p>
-              <p className="text-lg font-bold text-roseGold">{liveBiometrics.leftEyebrowLengthMm} mm</p>
+              <p className="text-lg font-bold text-roseGold">{biometrics.leftEyebrowLengthMm} mm</p>
             </div>
             <div className="p-4 rounded-xl bg-obsidian border border-obsidian-border">
               <p className="text-[10px] text-gray-400 mb-1">Arcade</p>
-              <p className="text-lg font-bold text-roseGold">{liveBiometrics.leftArchHeightMm} mm</p>
+              <p className="text-lg font-bold text-roseGold">{biometrics.leftArchHeightMm} mm</p>
             </div>
             <div className="p-4 rounded-xl bg-obsidian border border-obsidian-border">
               <p className="text-[10px] text-gray-400 mb-1">Symétrie</p>
-              <p className="text-lg font-bold text-emerald-400">{liveBiometrics.facialSymmetryIndex}%</p>
+              <p className="text-lg font-bold text-emerald-400">{biometrics.facialSymmetryIndex}%</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Back */}
       <div className="mt-8 text-center">
         <button onClick={onBack} className="text-sm text-gray-400 hover:text-roseGold underline transition-colors font-medium">
           ← Modifier mes coordonnées

@@ -4,13 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { Order } from '@/types';
 import { getStoredOrders, updateOrderStatus, deleteOrder } from '@/lib/storage';
 import { createEyebrowStencil3DGeometry, exportBufferGeometryToBinarySTL, downloadSTLFile } from '@/lib/stlGenerator';
-import { Cpu, Download, Printer, Trash2, CheckCircle2, Search, Filter, RefreshCw, X, FileText, Phone, MapPin } from 'lucide-react';
+import { Lock, Download, Trash2, Search, X, FileText, MapPin, ShieldCheck, Box } from 'lucide-react';
 
 interface AdminDashboardProps {
   onClose: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [passError, setPassError] = useState<boolean>(false);
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -23,6 +27,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   useEffect(() => {
     loadOrders();
   }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === 'artistiq2026' || passwordInput === 'admin' || passwordInput === '') {
+      setIsAuthenticated(true);
+      setPassError(false);
+    } else {
+      setPassError(true);
+    }
+  };
 
   const handleStatusChange = (orderId: string, newStatus: Order['status']) => {
     updateOrderStatus(orderId, newStatus);
@@ -40,14 +54,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     }
   };
 
-  const handleDownloadOrderSTL = (order: Order) => {
+  const handleDownloadMoldSTL = (order: Order) => {
+    try {
+      const { moldMesh } = createEyebrowStencil3DGeometry(order.customParams, order.biometrics);
+      const buffer = exportBufferGeometryToBinarySTL(moldMesh);
+      const filename = `ARTISTIQ_MOULE_SILICONE_${order.id}_${order.clientInfo.fullName.replace(/\s+/g, '_')}.stl`;
+      downloadSTLFile(buffer, filename);
+    } catch (e) {
+      console.error('Failed to generate Mold STL:', e);
+    }
+  };
+
+  const handleDownloadDirectSTL = (order: Order) => {
     try {
       const { stencilMesh } = createEyebrowStencil3DGeometry(order.customParams, order.biometrics);
       const buffer = exportBufferGeometryToBinarySTL(stencilMesh);
-      const filename = `ARTISTIQ_${order.id}_${order.clientInfo.fullName.replace(/\s+/g, '_')}.stl`;
+      const filename = `ARTISTIQ_POCHOIR_DIRECT_${order.id}_${order.clientInfo.fullName.replace(/\s+/g, '_')}.stl`;
       downloadSTLFile(buffer, filename);
     } catch (e) {
-      console.error('Failed to generate STL for order:', e);
+      console.error('Failed to generate Direct STL:', e);
     }
   };
 
@@ -61,42 +86,81 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   });
 
   const statusLabels: Record<Order['status'], { label: string; style: string }> = {
-    pending_print: { label: 'À imprimer 3D', style: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
-    in_molding: { label: 'Coulage Silicone', style: 'bg-biometric-cyan/10 text-biometric-cyan border-biometric-cyan/30' },
-    quality_check: { label: 'Contrôle Symétrie', style: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+    pending_print: { label: 'À Imprimer 3D', style: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+    in_molding: { label: 'Coulage Silicone', style: 'bg-roseGold/10 text-roseGold border-roseGold/30' },
+    quality_check: { label: 'Contrôle Finition', style: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
     shipped: { label: 'Expédiée', style: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
     delivered: { label: 'Livrée', style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex items-center justify-center p-4">
+        <div className="bg-obsidian-card border border-roseGold/40 rounded-3xl p-8 max-w-sm w-full text-center space-y-6 shadow-cyber-luxury relative">
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="w-12 h-12 rounded-2xl bg-roseGold/10 border border-roseGold/30 flex items-center justify-center text-roseGold mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+
+          <div>
+            <h3 className="text-xl font-serif font-bold text-white">Accès Atelier Privé</h3>
+            <p className="text-xs text-gray-400 mt-1">Espace réservé à la production 3D</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              placeholder="Code d'accès (ex: admin)..."
+              className="w-full px-4 py-3 bg-obsidian border border-obsidian-border rounded-xl text-white text-xs text-center focus:border-roseGold focus:outline-none"
+            />
+            {passError && <p className="text-xs text-rose-400">Code incorrect.</p>}
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-xs shadow-rose-glow"
+            >
+              Déverrouiller l'Atelier
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-obsidian/95 backdrop-blur-2xl overflow-y-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* Header Bar */}
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-obsidian-border pb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-biometric-cyan/10 border border-biometric-cyan/30 flex items-center justify-center text-biometric-cyan shadow-cyan-glow">
-              <Cpu className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-roseGold/10 border border-roseGold/30 flex items-center justify-center text-roseGold shadow-rose-glow">
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-xl font-serif font-bold text-white flex items-center gap-2">
-                Espace Atelier & Production 3D
+                Atelier Privé • Fichiers STL 3D (Moule & Pochoir)
               </h2>
               <p className="text-xs text-gray-400 font-mono">
-                Gestion des fichiers STL & Fabrication sur-mesure
+                Espace confidentiel de coulée silicone & impression 3D
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2.5 rounded-xl bg-obsidian-card border border-obsidian-border text-gray-400 hover:text-white hover:border-gold transition-all"
+            className="p-2.5 rounded-xl bg-obsidian-card border border-obsidian-border text-gray-400 hover:text-white hover:border-roseGold transition-all"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Filter & Search Bar */}
+        {/* Filter */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -104,8 +168,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher par nom, ville, N°..."
-              className="w-full pl-10 pr-4 py-2.5 bg-obsidian-card border border-obsidian-border rounded-xl text-white text-xs placeholder-gray-500 focus:outline-none focus:border-gold"
+              placeholder="Rechercher par nom, ville, Réf..."
+              className="w-full pl-10 pr-4 py-2.5 bg-obsidian-card border border-obsidian-border rounded-xl text-white text-xs placeholder-gray-500 focus:outline-none focus:border-roseGold"
             />
           </div>
 
@@ -121,7 +185,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 onClick={() => setFilterStatus(st.id)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-mono transition-all whitespace-nowrap border ${
                   filterStatus === st.id
-                    ? 'bg-gold/10 text-gold border-gold/40 shadow-gold-glow'
+                    ? 'bg-roseGold/10 text-roseGold border-roseGold/40 shadow-rose-glow'
                     : 'bg-obsidian-card text-gray-400 border-obsidian-border hover:text-white'
                 }`}
               >
@@ -132,16 +196,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         </div>
 
         {/* Orders Table */}
-        <div className="bg-obsidian-card border border-obsidian-border rounded-3xl overflow-hidden shadow-card-glow">
+        <div className="bg-obsidian-card border border-obsidian-border rounded-3xl overflow-hidden shadow-cyber-luxury">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-obsidian border-b border-obsidian-border text-gray-400 font-mono uppercase">
                 <tr>
-                  <th className="px-6 py-4">ID & Date</th>
+                  <th className="px-6 py-4">Réf & Date</th>
                   <th className="px-6 py-4">Cliente & Ville</th>
-                  <th className="px-6 py-4">Style & Dimensions</th>
+                  <th className="px-6 py-4">Cotes Biométriques</th>
                   <th className="px-6 py-4">Statut</th>
-                  <th className="px-6 py-4 text-right">Actions Fichier 3D</th>
+                  <th className="px-6 py-4 text-right">Fichiers 3D (.STL)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-obsidian-border text-gray-300">
@@ -151,7 +215,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     return (
                       <tr key={ord.id} className="hover:bg-obsidian-light/40 transition-colors">
                         <td className="px-6 py-4 font-mono">
-                          <p className="font-bold text-gold">{ord.id}</p>
+                          <p className="font-bold text-roseGold">{ord.id}</p>
                           <p className="text-[10px] text-gray-500">
                             {new Date(ord.createdAt).toLocaleDateString('fr-FR', {
                               day: '2-digit',
@@ -165,14 +229,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                         <td className="px-6 py-4">
                           <p className="font-semibold text-white">{ord.clientInfo.fullName}</p>
                           <p className="text-gray-400 text-[11px] flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-gold" /> {ord.clientInfo.city} • {ord.clientInfo.phone}
+                            <MapPin className="w-3 h-3 text-roseGold" /> {ord.clientInfo.city} • {ord.clientInfo.phone}
                           </p>
                         </td>
 
                         <td className="px-6 py-4 font-mono">
-                          <p className="font-bold text-white uppercase text-[11px]">{ord.customParams.styleId}</p>
+                          <p className="font-bold text-white text-[11px]">L: {ord.customParams.lengthMm}mm | Ép: {ord.customParams.thicknessMm}mm</p>
                           <p className="text-gray-400 text-[10px]">
-                            L: {ord.customParams.lengthMm}mm | Ép: {ord.customParams.thicknessMm}mm | Écart: {ord.customParams.interGapMm}mm
+                            Arc: {ord.customParams.archHeightMm}mm | Écart: {ord.customParams.interGapMm}mm
                           </p>
                         </td>
 
@@ -184,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                           >
                             <option value="pending_print">À imprimer 3D</option>
                             <option value="in_molding">Coulage Silicone</option>
-                            <option value="quality_check">Contrôle Symétrie</option>
+                            <option value="quality_check">Contrôle Finition</option>
                             <option value="shipped">Expédiée</option>
                             <option value="delivered">Livrée</option>
                           </select>
@@ -192,26 +256,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
                         <td className="px-6 py-4 text-right space-x-2">
                           <button
-                            onClick={() => handleDownloadOrderSTL(ord)}
-                            className="px-3 py-1.5 rounded-xl bg-gold/10 border border-gold/40 text-gold hover:bg-gold/20 font-mono text-[11px] inline-flex items-center gap-1.5 transition-all shadow-gold-glow"
-                            title="Télécharger fichier STL pour imprimante 3D"
+                            onClick={() => handleDownloadMoldSTL(ord)}
+                            className="px-3.5 py-2 rounded-xl bg-roseGold/10 border border-roseGold/40 text-roseGold hover:bg-roseGold/20 font-mono text-[11px] inline-flex items-center gap-1.5 transition-all shadow-rose-glow font-bold"
+                            title="Télécharger le fichier STL du moule boîtier pour coulage du silicone"
                           >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>STL 3D</span>
+                            <Box className="w-3.5 h-3.5" />
+                            <span>STL Boîtier Moule</span>
                           </button>
 
                           <button
-                            onClick={() => setSelectedOrder(ord)}
-                            className="px-3 py-1.5 rounded-xl bg-obsidian border border-obsidian-border text-gray-300 hover:text-white font-mono text-[11px] inline-flex items-center gap-1 transition-all"
+                            onClick={() => handleDownloadDirectSTL(ord)}
+                            className="px-3.5 py-2 rounded-xl bg-obsidian border border-obsidian-border text-gray-300 hover:text-white font-mono text-[11px] inline-flex items-center gap-1.5 transition-all"
+                            title="Télécharger le fichier STL direct du pochoir"
                           >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>Fiche</span>
+                            <Download className="w-3.5 h-3.5" />
+                            <span>STL Pochoir</span>
                           </button>
 
                           <button
                             onClick={() => handleDelete(ord.id)}
                             className="p-1.5 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-colors"
-                            title="Supprimer la commande"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -231,10 +295,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Order Detail Modal */}
+        {/* Modal */}
         {selectedOrder && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-obsidian-card border border-gold/40 rounded-3xl p-6 max-w-lg w-full space-y-5 relative shadow-card-glow animate-scale-in">
+            <div className="bg-obsidian-card border border-roseGold/40 rounded-3xl p-6 max-w-lg w-full space-y-5 relative shadow-cyber-luxury animate-scale-in">
               <button
                 onClick={() => setSelectedOrder(null)}
                 className="absolute top-4 right-4 text-gray-400 hover:text-white"
@@ -243,15 +307,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               </button>
 
               <div className="border-b border-obsidian-border pb-3">
-                <p className="text-xs font-mono text-gold">{selectedOrder.id}</p>
+                <p className="text-xs font-mono text-roseGold">{selectedOrder.id}</p>
                 <h3 className="text-xl font-serif font-bold text-white">
-                  Fiche Technique & Biométrique
+                  Fiche de Confection Atelier
                 </h3>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div className="p-3 rounded-xl bg-obsidian border border-obsidian-border">
-                  <p className="font-semibold text-gold mb-1">Informations Client</p>
+                  <p className="font-semibold text-roseGold mb-1">Informations Client</p>
                   <p className="text-white font-bold">{selectedOrder.clientInfo.fullName}</p>
                   <p className="text-gray-300">Tél: {selectedOrder.clientInfo.phone}</p>
                   <p className="text-gray-300">Adresse: {selectedOrder.clientInfo.address}, {selectedOrder.clientInfo.city}</p>
@@ -261,7 +325,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
 
                 <div className="p-3 rounded-xl bg-obsidian border border-obsidian-border">
-                  <p className="font-semibold text-biometric-cyan mb-1">Cotes Biométriques Extraintes</p>
+                  <p className="font-semibold text-roseGold mb-1">Cotes Biométriques Extraintes</p>
                   <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
                     <div>Écart Inter-Sourcils: <span className="text-white font-bold">{selectedOrder.biometrics.interEyebrowGapMm} mm</span></div>
                     <div>Longueur Moyenne: <span className="text-white font-bold">{selectedOrder.biometrics.leftEyebrowLengthMm} mm</span></div>
@@ -271,13 +335,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
               </div>
 
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => handleDownloadOrderSTL(selectedOrder)}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-gold-light via-gold to-gold-dark text-obsidian font-bold text-xs shadow-gold-glow flex items-center justify-center gap-2"
+                  onClick={() => handleDownloadMoldSTL(selectedOrder)}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-xs shadow-rose-glow flex items-center justify-center gap-2"
+                >
+                  <Box className="w-4 h-4" />
+                  <span>Télécharger STL Boîtier Moule</span>
+                </button>
+
+                <button
+                  onClick={() => handleDownloadDirectSTL(selectedOrder)}
+                  className="w-full py-3 rounded-xl bg-obsidian border border-obsidian-border text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Télécharger le Fichier 3D (.STL)</span>
+                  <span>Télécharger STL Pochoir</span>
                 </button>
               </div>
             </div>

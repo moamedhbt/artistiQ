@@ -34,7 +34,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
 
     // Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0B0B0E');
+    scene.background = new THREE.Color('#0B0A0F');
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
     camera.position.set(0, 0, 160);
@@ -164,16 +164,16 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Header */}
+      {/* Header — Obsidian Dark Theme */}
       <div className="text-center space-y-2 mb-8">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-biometric-cyan/10 border border-biometric-cyan/30 text-biometric-cyan text-xs font-mono">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-roseGold/10 border border-roseGold/30 text-roseGold text-xs font-mono">
           <Box className="w-4 h-4" />
           Étape 4 sur 4 • Modèle 3D Généré pour Impression & Moule
         </div>
         <h2 className="text-3xl font-serif font-bold text-white">
           Aperçu du Pochoir 3D & Moule Silicone
         </h2>
-        <p className="text-sm text-gray-300 max-w-xl mx-auto">
+        <p className="text-sm text-gray-200 font-medium max-w-xl mx-auto">
           Faites pivoter la pièce avec votre souris ou votre doigt. Le fichier STL est prêt pour votre imprimante 3D et le coulage de résine/silicone.
         </p>
       </div>
@@ -182,22 +182,22 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
         
         {/* Interactive 3D Canvas Container */}
         <div className="lg:col-span-7">
-          <div className="relative aspect-[4/3] rounded-3xl bg-obsidian-card border border-gold/40 shadow-card-glow overflow-hidden">
+          <div className="relative aspect-[4/3] rounded-3xl bg-obsidian-card border border-roseGold/40 shadow-rose-glow overflow-hidden">
             <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
             {/* Canvas Overlay Info */}
-            <div className="absolute top-4 left-4 text-[10px] font-mono text-gold bg-obsidian/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-gold/20 flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-gold animate-spin-slow" />
+            <div className="absolute top-4 left-4 text-[10px] font-mono text-roseGold bg-obsidian/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-roseGold/20 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-roseGold animate-spin-slow" />
               <span>INTERACTIF • FAITES TOURNER LE MODÈLE</span>
             </div>
 
-            <div className="absolute bottom-4 right-4 text-[11px] font-mono text-gray-400 bg-obsidian/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-obsidian-border">
+            <div className="absolute bottom-4 right-4 text-[11px] font-mono text-gray-300 bg-obsidian/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-obsidian-border">
               Épaisseur: {customParams.stencilThicknessMm}mm • Moule: {customParams.moldDepthMm}mm
             </div>
           </div>
         </div>
 
-        {/* Right Action & Order Summary Card */}
+        {/* Right Action & Order Summary Card — Obsidian Dark */}
         <div className="lg:col-span-5 space-y-6">
           <div className="p-6 rounded-3xl bg-obsidian-card border border-obsidian-border space-y-5 shadow-card-glow">
             
@@ -207,55 +207,55 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
 
             {/* Client Info Brief */}
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between text-gray-300">
+              <div className="flex justify-between text-gray-200">
                 <span>Destinataire:</span>
-                <span className="font-semibold text-white">{clientInfo.fullName}</span>
+                <span className="font-bold text-white">{clientInfo.fullName}</span>
               </div>
-              <div className="flex justify-between text-gray-300">
+              <div className="flex justify-between text-gray-200">
                 <span>Ville de Livraison:</span>
-                <span className="font-semibold text-white">{clientInfo.city}</span>
+                <span className="font-bold text-white">{clientInfo.city}</span>
               </div>
-              <div className="flex justify-between text-gray-300">
+              <div className="flex justify-between text-gray-200">
                 <span>Style Sélectionné:</span>
-                <span className="font-semibold text-gold uppercase">{customParams.styleId}</span>
+                <span className="font-bold text-roseGold uppercase">{customParams.styleId}</span>
               </div>
             </div>
 
             {/* Production Specs */}
             <div className="p-4 rounded-2xl bg-obsidian border border-obsidian-border space-y-2 text-xs font-mono">
-              <div className="flex justify-between text-gray-400">
+              <div className="flex justify-between text-gray-300">
                 <span>Matière Finale:</span>
                 <span className="text-emerald-400 font-bold">Silicone Souple Pharmacie</span>
               </div>
-              <div className="flex justify-between text-gray-400">
+              <div className="flex justify-between text-gray-300">
                 <span>Procédé:</span>
-                <span className="text-gold">Impression 3D + Moule Resine</span>
+                <span className="text-roseGold font-bold">Impression 3D + Moule Resine</span>
               </div>
-              <div className="flex justify-between text-gray-400">
+              <div className="flex justify-between text-gray-300">
                 <span>Paiement:</span>
-                <span className="text-white">À la livraison (Cash)</span>
+                <span className="text-white font-bold">À la livraison (Cash)</span>
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
-              {/* Optional STL Download Button for Client/Admin */}
+              {/* Optional STL Download Button */}
               <button
                 onClick={handleDownloadSTL}
                 disabled={isGeneratingSTL}
-                className="w-full py-3 rounded-xl bg-obsidian border border-gold/40 text-gold text-xs font-mono hover:bg-gold/10 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-obsidian border border-roseGold/40 text-roseGold text-xs font-mono font-bold hover:bg-roseGold/10 transition-all flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 <span>{stlDownloaded ? 'Fichier 3D (.STL) Téléchargé !' : 'Télécharger le Fichier 3D (.STL)'}</span>
               </button>
 
-              {/* Confirm Order Button */}
+              {/* Confirm Order — Grand Bouton Or Rose Lumineux */}
               <button
                 onClick={onConfirmOrder}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-gold-light via-gold to-gold-dark text-obsidian font-bold text-sm shadow-gold-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                className="w-full py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_50px_rgba(216,164,153,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
                 <span>Confirmer Ma Commande Sur-Mesure</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-5 h-5" />
               </button>
             </div>
 

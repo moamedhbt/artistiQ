@@ -8,52 +8,37 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        obsidian: {
-          DEFAULT: '#0B0B0E',
-          card: '#12121A',
-          border: '#1E1E2C',
-          light: '#252536',
-        },
-        gold: {
-          DEFAULT: '#D4AF37',
-          light: '#F5E6AD',
-          dark: '#996515',
-          metallic: 'linear-gradient(135deg, #BF953F 0%, #FCF6BA 25%, #B38728 50%, #FBF5B7 75%, #AA771C 100%)',
+        pearl: {
+          DEFAULT: '#F9F8F6',
+          dark: '#F0ECE8',
+          card: '#FFFFFF',
+          border: '#E6E0DA',
         },
         roseGold: {
-          DEFAULT: '#E0A96D',
-          light: '#F8DFD4',
+          DEFAULT: '#C89388',
+          light: '#F7ECE8',
+          dark: '#A66E70',
         },
-        biometric: {
-          cyan: '#00F2FE',
-          blue: '#4FACFE',
-          neon: '#00FFCC',
-          purple: '#8A2BE2',
+        charcoal: {
+          DEFAULT: '#1E2025',
+          button: '#2B2E36',
+          buttonHover: '#1A1C22',
+          muted: '#656975',
+        },
+        iridescent: {
+          start: '#F3E5F5',
+          mid: '#E1F5FE',
+          end: '#FFF3E0',
         }
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-serif)', 'Georgia', 'serif'],
+        serif: ['Playfair Display', 'Cormorant Garamond', 'Didot', 'serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'gold-glow': '0 0 25px rgba(212, 175, 55, 0.25)',
-        'cyan-glow': '0 0 25px rgba(0, 242, 254, 0.25)',
-        'card-glow': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
-      },
-      animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'laser-sweep': 'laser 2.5s ease-in-out infinite',
-        'float': 'float 6s ease-in-out infinite',
-      },
-      keyframes: {
-        laser: {
-          '0%, 100%': { top: '0%' },
-          '50%': { top: '100%' },
-        },
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-10px)' },
-        }
+        'luxury': '0 25px 60px rgba(0, 0, 0, 0.06)',
+        'button-shadow': '0 12px 30px rgba(43, 46, 54, 0.2)',
+        'pearlescent': '0 8px 32px 0 rgba(200, 147, 136, 0.15)',
       }
     },
   },

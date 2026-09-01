@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Navbar } from '@/components/Navbar';
-import { Hero } from '@/components/Hero';
+import { Header } from '@/components/Header';
+import { MainHeroSection } from '@/components/MainHeroSection';
+import { ProductionCycle } from '@/components/ProductionCycle';
+import { BeautyCollectionGrid } from '@/components/BeautyCollectionGrid';
 import { StartupStory } from '@/components/StartupStory';
-import { ProductGallery } from '@/components/ProductGallery';
-import { Testimonials } from '@/components/Testimonials';
-import { FaqSection } from '@/components/FaqSection';
 import { ClientInfoStep } from '@/components/ClientInfoStep';
 import { BiometricScannerStep } from '@/components/BiometricScannerStep';
 import { EyebrowStudioStep } from '@/components/EyebrowStudioStep';
@@ -21,7 +20,10 @@ import { Lock } from 'lucide-react';
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
+  
   const studioRef = useRef<HTMLDivElement>(null);
+  const processRef = useRef<HTMLDivElement>(null);
+  const productsRef = useRef<HTMLDivElement>(null);
 
   const [clientInfo, setClientInfo] = useState<ClientInfo>({
     fullName: '',
@@ -35,11 +37,19 @@ export default function Home() {
   const [customParams, setCustomParams] = useState<EyebrowCustomParams>(DEFAULT_CUSTOM_PARAMS);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  const scrollToStudio = () => {
-    setCurrentStep(1);
-    setTimeout(() => {
-      studioRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+  const scrollToSection = (sectionId: string) => {
+    if (sectionId === 'hero') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (sectionId === 'processus') {
+      processRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (sectionId === 'produits') {
+      productsRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (sectionId === 'commander') {
+      setCurrentStep(1);
+      setTimeout(() => {
+        studioRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
   };
 
   const handleClientInfoNext = (info: ClientInfo) => {
@@ -94,30 +104,33 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-pearl text-charcoal font-sans selection:bg-roseGold-light">
       
-      {/* Header Navbar */}
-      <Navbar
-        currentStep={currentStep}
-        totalSteps={5}
-        onNavigateStep={(step) => {
-          setCurrentStep(step);
-          if (step > 0) studioRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }}
-      />
+      {/* Header Navigation */}
+      <Header onNavigate={scrollToSection} />
 
-      {/* Main Page Storytelling */}
+      {/* Main Sections */}
       <main className="flex-1">
         
-        {/* Hero Banner */}
-        <Hero onStartScan={scrollToStudio} />
+        {/* Main Hero Banner: "PRÉCISION, PURITÉ ET LA FINITION PARFAITE." */}
+        <MainHeroSection
+          onOrderClick={() => scrollToSection('commander')}
+          onExploreProcess={() => scrollToSection('processus')}
+        />
 
-        {/* Our Startup Story */}
+        {/* Le Cycle de Production (Dispenser Nozzle, UV Tunnel, Laser Marker, Final Cube) */}
+        <div ref={processRef}>
+          <ProductionCycle />
+        </div>
+
+        {/* La Collection Beauté & Maquillage */}
+        <div ref={productsRef}>
+          <BeautyCollectionGrid onOrderStamp={() => scrollToSection('commander')} />
+        </div>
+
+        {/* Storytelling & Startup Vision */}
         <StartupStory />
 
-        {/* Product Collection Gallery & 3D Interactive Viewer */}
-        <ProductGallery />
-
-        {/* Interactive Studio Anchor Section */}
-        <div ref={studioRef} className="py-12 bg-gradient-to-b from-pearl-dark/20 via-pearl to-pearl border-t border-pearl-border">
+        {/* Interactive Custom Stamp Order Studio */}
+        <div ref={studioRef} id="commander" className="py-16 bg-gradient-to-b from-pearl-dark/30 via-pearl to-pearl border-t border-pearl-border">
           {currentStep === 1 && (
             <ClientInfoStep
               initialInfo={clientInfo}
@@ -159,12 +172,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Client Reviews */}
-        <Testimonials />
-
-        {/* FAQ */}
-        <FaqSection />
-
       </main>
 
       {/* Secret Admin Modal */}
@@ -172,7 +179,7 @@ export default function Home() {
         <AdminDashboard onClose={() => setIsAdminOpen(false)} />
       )}
 
-      {/* Luxury Footer */}
+      {/* Footer */}
       <footer className="border-t border-pearl-border bg-pearl-dark/60 py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-charcoal-muted font-serif italic">
           <div>

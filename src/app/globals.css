@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-obsidian text-gray-100 font-sans antialiased selection:bg-gold selection:text-obsidian min-h-screen;
+    @apply bg-pearl text-charcoal font-sans antialiased selection:bg-roseGold-light selection:text-charcoal min-h-screen;
   }
 }
 
@@ -17,21 +17,8 @@
   }
 }
 
-@keyframes reverseSpin {
-  from {
-    transform: rotate(360deg);
-  }
-  to {
-    transform: rotate(0deg);
-  }
-}
-
 .animate-spin-slow {
   animation: spinSlow 20s linear infinite;
-}
-
-.animate-reverse-spin {
-  animation: reverseSpin 25s linear infinite;
 }
 
 /* Custom scrollbars */
@@ -41,14 +28,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0B0B0E;
+  background: #F9F8F6;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #252536;
+  background: #E6E0DA;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #D4AF37;
+  background: #C89388;
 }

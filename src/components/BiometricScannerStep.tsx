@@ -296,29 +296,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           onFaceStatus={handleFaceStatus}
         />
 
-        {/* DETECTION LABELS */}
-        {faceStatus !== 'searching' && (
-          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 25 }}>
-            <div className="absolute top-[32%] left-[10%] px-2 py-1 rounded-full bg-black/60 border border-roseGold/30 text-[9px] font-mono text-roseGold flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${faceStatus === 'positioned' ? 'bg-emerald-400' : 'bg-amber-400'}`}/> SOURCIL G
-            </div>
-            <div className="absolute top-[32%] right-[10%] px-2 py-1 rounded-full bg-black/60 border border-roseGold/30 text-[9px] font-mono text-roseGold flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${faceStatus === 'positioned' ? 'bg-emerald-400' : 'bg-amber-400'}`}/> SOURCIL D
-            </div>
-            <div className="absolute top-[40%] left-[18%] px-2 py-1 rounded-full bg-black/60 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${faceStatus === 'positioned' ? 'bg-emerald-400' : 'bg-amber-400'}`}/> OEIL G
-            </div>
-            <div className="absolute top-[40%] right-[18%] px-2 py-1 rounded-full bg-black/60 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${faceStatus === 'positioned' ? 'bg-emerald-400' : 'bg-amber-400'}`}/> OEIL D
-            </div>
-            <div className="absolute top-[48%] left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-black/60 border border-biometric-cyan/30 text-[9px] font-mono text-biometric-cyan flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${faceStatus === 'positioned' ? 'bg-emerald-400' : 'bg-amber-400'}`}/> NEZ
-            </div>
-            <div className="absolute top-[56%] left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-black/60 border border-roseGold/30 text-[9px] font-mono text-roseGold flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${faceStatus === 'positioned' ? 'bg-emerald-400' : 'bg-amber-400'}`}/> BOUCHE
-            </div>
-          </div>
-        )}
+        {/* Labels are now drawn on the canvas at actual landmark positions */}
 
         {/* Progress bar */}
         <div className="absolute bottom-4 left-4 right-4 space-y-2 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border" style={{ zIndex: 30 }}>

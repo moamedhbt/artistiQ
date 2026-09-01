@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { EyebrowCustomParams, BiometricMeasurements, ClientInfo } from '@/types';
 import { createEyebrowStencil3DGeometry, exportBufferGeometryToBinarySTL, downloadSTLFile } from '@/lib/stlGenerator';
 import * as THREE from 'three';
-import { Box, Download, CheckCircle2, ArrowRight, Sparkles, Layers } from 'lucide-react';
+import { Box, Download, CheckCircle2, ArrowRight, Sparkles, Layers, Info } from 'lucide-react';
 
 interface ThreeDPreviewStepProps {
   clientInfo: ClientInfo;
@@ -24,7 +24,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
   const mountRef = useRef<HTMLDivElement>(null);
   const [isGeneratingSTL, setIsGeneratingSTL] = useState(false);
   const [stlDownloaded, setStlDownloaded] = useState(false);
-  const [viewMode, setViewMode] = useState<'stencil' | 'mold' | 'both'>('both');
+  const [activeView, setActiveView] = useState<'stencil' | 'mold' | 'both'>('both');
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -36,7 +36,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
     scene.background = new THREE.Color('#0B0A0F');
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 20, 120);
+    camera.position.set(0, 20, 100);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
@@ -45,30 +45,30 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
     mountRef.current.appendChild(renderer.domElement);
 
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
     const dirLight1 = new THREE.DirectionalLight(0xd4af37, 2);
-    dirLight1.position.set(80, 80, 80);
+    dirLight1.position.set(60, 60, 60);
     dirLight1.castShadow = true;
     scene.add(dirLight1);
 
-    const dirLight2 = new THREE.DirectionalLight(0x00f2fe, 1);
-    dirLight2.position.set(-60, -40, 60);
+    const dirLight2 = new THREE.DirectionalLight(0x00f2fe, 0.8);
+    dirLight2.position.set(-40, -30, 40);
     scene.add(dirLight2);
 
-    const pointLight = new THREE.PointLight(0xd4af37, 0.5, 200);
-    pointLight.position.set(0, 50, 50);
+    const pointLight = new THREE.PointLight(0xd8a499, 0.6, 150);
+    pointLight.position.set(0, 40, 40);
     scene.add(pointLight);
 
     // Create geometries
     const { stencilMesh, moldMesh } = createEyebrowStencil3DGeometry(customParams, biometrics);
 
-    // Stencil material (Rose Gold metallic)
+    // Stencil material (Rose Gold)
     const stencilMaterial = new THREE.MeshStandardMaterial({
       color: 0xd8a499,
-      metalness: 0.7,
-      roughness: 0.25,
+      metalness: 0.6,
+      roughness: 0.3,
       side: THREE.DoubleSide,
     });
 
@@ -81,18 +81,18 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
       color: 0x00f2fe,
       wireframe: true,
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.06,
     });
     const wireObj = new THREE.Mesh(stencilMesh, wireMat);
     scene.add(wireObj);
 
     // Mold material (darker, matte)
     const moldMaterial = new THREE.MeshStandardMaterial({
-      color: 0x888888,
-      metalness: 0.3,
-      roughness: 0.7,
+      color: 0x666666,
+      metalness: 0.2,
+      roughness: 0.8,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.5,
       side: THREE.DoubleSide,
     });
 
@@ -100,9 +100,9 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
     moldObj.castShadow = true;
     scene.add(moldObj);
 
-    // Grid helper
-    const gridHelper = new THREE.GridHelper(200, 20, 0x1a1a2e, 0x1a1a2e);
-    gridHelper.position.y = -50;
+    // Grid
+    const gridHelper = new THREE.GridHelper(150, 15, 0x1a1a2e, 0x1a1a2e);
+    gridHelper.position.y = -40;
     scene.add(gridHelper);
 
     // Drag rotation
@@ -169,8 +169,8 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
   const handleDownloadSTL = () => {
     setIsGeneratingSTL(true);
     try {
-      const { stencilMesh } = createEyebrowStencil3DGeometry(customParams, biometrics);
-      const buffer = exportBufferGeometryToBinarySTL(stencilMesh);
+      const { moldMesh } = createEyebrowStencil3DGeometry(customParams, biometrics);
+      const buffer = exportBufferGeometryToBinarySTL(moldMesh);
       const filename = `artistiQ_moule_${clientInfo.fullName.replace(/\s+/g, '_')}_${customParams.styleId}.stl`;
       downloadSTLFile(buffer, filename);
       setStlDownloaded(true);
@@ -193,7 +193,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
           Votre Moule Sur-Mesure
         </h2>
         <p className="text-sm text-gray-200 font-medium max-w-xl mx-auto">
-          Moule personnalisé basé sur vos mesures biométriques. Faites pivoter pour voir tous les détails.
+          Moule professionnel pour coulée silicone. Faites pivoter pour voir les détails.
         </p>
       </div>
 
@@ -212,18 +212,8 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
               </div>
             </div>
 
-            {/* Bottom specs */}
-            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-              <div className="text-[10px] font-mono text-gray-300 bg-obsidian/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-obsidian-border">
-                Pochoir: {customParams.stencilThicknessMm}mm
-              </div>
-              <div className="text-[10px] font-mono text-gray-300 bg-obsidian/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-obsidian-border">
-                Moule: {customParams.moldDepthMm}mm
-              </div>
-            </div>
-
             {/* Legend */}
-            <div className="absolute bottom-14 left-4 flex items-center gap-4 text-[9px] font-mono">
+            <div className="absolute bottom-4 left-4 flex items-center gap-4 text-[9px] font-mono">
               <span className="flex items-center gap-1.5 text-roseGold">
                 <span className="w-3 h-2 rounded-sm bg-roseGold" />
                 Pochoir
@@ -237,6 +227,23 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
                 Wireframe
               </span>
             </div>
+
+            {/* View toggle */}
+            <div className="absolute bottom-4 right-4 flex items-center gap-2">
+              {(['both', 'stencil', 'mold'] as const).map((view) => (
+                <button
+                  key={view}
+                  onClick={() => setActiveView(view)}
+                  className={`px-2 py-1 rounded-lg text-[9px] font-mono transition-all ${
+                    activeView === view
+                      ? 'bg-roseGold text-obsidian'
+                      : 'bg-obsidian/60 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {view === 'both' ? 'Les deux' : view === 'stencil' ? 'Pochoir' : 'Moule'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -248,6 +255,12 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
               <Layers className="w-5 h-5 text-roseGold" />
               Récapitulatif de Confection
             </h3>
+
+            {/* Info box */}
+            <div className="p-3 rounded-xl bg-biometric-cyan/5 border border-biometric-cyan/20 text-xs text-biometric-cyan flex items-start gap-2">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>Le fichier STL contient le <strong>moule</strong> (négatif) pour couler le silicone. Le pochoir (positif) est créé par coulée.</p>
+            </div>
 
             {/* Client Info */}
             <div className="space-y-2 text-xs">
@@ -286,16 +299,37 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
               </div>
             </div>
 
+            {/* Mold specs */}
+            <div className="p-4 rounded-2xl bg-obsidian border border-obsidian-border space-y-2 text-xs font-mono">
+              <p className="text-[10px] text-gray-400 uppercase mb-2">Spécifications du Moule</p>
+              <div className="flex justify-between text-gray-300">
+                <span>Parois:</span>
+                <span className="text-white font-bold">3mm</span>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <span>Base:</span>
+                <span className="text-white font-bold">4mm</span>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <span>Canal coulée:</span>
+                <span className="text-white font-bold">8mm</span>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <span>Encoche nez:</span>
+                <span className="text-emerald-400 font-bold">Incluse</span>
+              </div>
+            </div>
+
             {/* Production specs */}
             <div className="p-4 rounded-2xl bg-obsidian border border-obsidian-border space-y-2 text-xs font-mono">
               <p className="text-[10px] text-gray-400 uppercase mb-2">Production</p>
               <div className="flex justify-between text-gray-300">
-                <span>Matière:</span>
+                <span>Matière pochoir:</span>
                 <span className="text-emerald-400 font-bold">Silicone Pharmacie</span>
               </div>
               <div className="flex justify-between text-gray-300">
-                <span>Procédé:</span>
-                <span className="text-roseGold font-bold">Impression 3D + Moule</span>
+                <span>Impression moule:</span>
+                <span className="text-roseGold font-bold">Résine 3D</span>
               </div>
               <div className="flex justify-between text-gray-300">
                 <span>Paiement:</span>
@@ -311,7 +345,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
                 className="w-full py-3.5 rounded-xl bg-obsidian border border-roseGold/40 text-roseGold text-xs font-mono font-bold hover:bg-roseGold/10 transition-all flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                <span>{stlDownloaded ? 'STL Téléchargé !' : 'Télécharger le Fichier STL'}</span>
+                <span>{stlDownloaded ? 'STL Téléchargé !' : 'Télécharger le Moule STL'}</span>
               </button>
 
               <button

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BiometricMeasurements } from '@/types';
 import { calculateBiometricsFromLandmarks, DEFAULT_BIOMETRICS } from '@/lib/biometrics';
-import { Camera, RefreshCw, CheckCircle2, Sparkles, ChevronRight, ChevronDown, ChevronUp, Zap, HelpCircle, Eye, RotateCcw, Scan, Crosshair } from 'lucide-react';
+import { Camera, RefreshCw, CheckCircle2, ChevronRight, ChevronDown, ChevronUp, HelpCircle, Eye, RotateCcw, Scan, Crosshair, Zap } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const FaceMeshCanvas = dynamic(() => import('./FaceMeshCanvas'), { ssr: false });
@@ -13,13 +13,11 @@ interface BiometricScannerStepProps {
   onBack: () => void;
 }
 
-type ScanPhase = 'idle' | 'detecting' | 'positioned' | 'scanning' | 'completed';
-
 export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   onCompleted,
   onBack,
 }) => {
-  const [phase, setPhase] = useState<ScanPhase>('idle');
+  const [phase, setPhase] = useState<'idle' | 'detecting' | 'scanning' | 'completed'>('idle');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -33,10 +31,74 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scanStartedRef = useRef(false);
+
+  // Capture snapshot
+  const capture = useCallback(() => {
+    if (!canvasRef.current || !videoRef.current) return '';
+    const c = canvasRef.current;
+    c.width = videoRef.current.videoWidth || 640;
+    c.height = videoRef.current.videoHeight || 480;
+    const ctx = c.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(videoRef.current, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.85);
+    }
+    return '';
+  }, []);
+
+  // Run the actual scan
+  const runScan = useCallback(() => {
+    if (scanStartedRef.current) return;
+    scanStartedRef.current = true;
+    
+    setPhase('scanning');
+    setCurrentAngle('front');
+    setProgress(0);
+
+    let p = 0;
+    const interval = setInterval(() => {
+      p += 2;
+      setProgress(p);
+
+      if (p === 33) {
+        setSnapshots(prev => ({ ...prev, front: capture() }));
+        setCurrentAngle('left');
+      } else if (p === 66) {
+        setSnapshots(prev => ({ ...prev, left: capture() }));
+        setCurrentAngle('right');
+      } else if (p >= 100) {
+        clearInterval(interval);
+        setSnapshots(prev => ({ ...prev, right: capture() }));
+        
+        const computed = calculateBiometricsFromLandmarks(
+          { x: 200, y: 200 }, { x: 440, y: 200 },
+          { x: 210, y: 160 }, { x: 260, y: 145 },
+          { x: 310, y: 162 }, { x: 330, y: 162 },
+          { x: 380, y: 145 }, { x: 430, y: 160 },
+          14.5, 14.3
+        );
+        setBiometrics(computed);
+        setPhase('completed');
+      }
+    }, 30);
+  }, [capture]);
+
+  // Handle face status from FaceMeshCanvas
+  const handleFaceStatus = useCallback((status: 'searching' | 'detected' | 'positioned') => {
+    setFaceStatus(status);
+    if (status === 'positioned' && !scanStartedRef.current) {
+      // Auto-start scan after 1 second
+      setTimeout(() => {
+        runScan();
+      }, 1000);
+    }
+  }, [runScan]);
 
   // Start camera
   const startCamera = async () => {
     setCameraError(null);
+    scanStartedRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } },
@@ -68,130 +130,17 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     return () => stopCamera();
   }, []);
 
-  // Capture snapshot
-  const capture = useCallback(() => {
-    if (!canvasRef.current || !videoRef.current) return '';
-    const c = canvasRef.current;
-    c.width = videoRef.current.videoWidth || 640;
-    c.height = videoRef.current.videoHeight || 480;
-    const ctx = c.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, c.width, c.height);
-      return c.toDataURL('image/jpeg', 0.85);
-    }
-    return '';
-  }, []);
-
-  // Handle face status from FaceMeshCanvas
-  const handleFaceStatus = useCallback((status: 'searching' | 'detected' | 'positioned') => {
-    setFaceStatus(status);
-    if (status === 'positioned' && phase === 'detecting') {
-      setPhase('positioned');
-      // Auto-start scan directly (bypass phase check)
-      setTimeout(() => {
-        setPhase('scanning');
-        setCurrentAngle('front');
-        setProgress(0);
-
-        let p = 0;
-        const interval = setInterval(() => {
-          p += 2;
-          setProgress(p);
-
-          if (p === 33) {
-            setSnapshots(prev => ({ ...prev, front: capture() }));
-            setCurrentAngle('left');
-          } else if (p === 66) {
-            setSnapshots(prev => ({ ...prev, left: capture() }));
-            setCurrentAngle('right');
-          } else if (p >= 100) {
-            clearInterval(interval);
-            setSnapshots(prev => ({ ...prev, right: capture() }));
-            
-            const computed = calculateBiometricsFromLandmarks(
-              { x: 200, y: 200 }, { x: 440, y: 200 },
-              { x: 210, y: 160 }, { x: 260, y: 145 },
-              { x: 310, y: 162 }, { x: 330, y: 162 },
-              { x: 380, y: 145 }, { x: 430, y: 160 },
-              14.5, 14.3
-            );
-            setBiometrics(computed);
-            setPhase('completed');
-          }
-        }, 30);
-      }, 1000);
-    }
-  }, [phase, capture]);
-
-  // Start scan
-  const startScan = () => {
-    if (phase !== 'positioned') return;
-    setPhase('scanning');
-    setCurrentAngle('front');
-    setProgress(0);
-
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 2;
-      setProgress(p);
-
-      if (p === 33) {
-        setSnapshots(prev => ({ ...prev, front: capture() }));
-        setCurrentAngle('left');
-      } else if (p === 66) {
-        setSnapshots(prev => ({ ...prev, left: capture() }));
-        setCurrentAngle('right');
-      } else if (p >= 100) {
-        clearInterval(interval);
-        setSnapshots(prev => ({ ...prev, right: capture() }));
-        
-        const computed = calculateBiometricsFromLandmarks(
-          { x: 200, y: 200 }, { x: 440, y: 200 },
-          { x: 210, y: 160 }, { x: 260, y: 145 },
-          { x: 310, y: 162 }, { x: 330, y: 162 },
-          { x: 380, y: 145 }, { x: 430, y: 160 },
-          14.5, 14.3
-        );
-        setBiometrics(computed);
-        setPhase('completed');
-      }
-    }, 30);
-  };
-
-  // Simulation mode (fully automatic)
+  // Simulation mode
   const runSimulation = () => {
+    scanStartedRef.current = false;
     setPhase('detecting');
     setProgress(0);
     setFaceStatus('detected');
     
     setTimeout(() => {
       setFaceStatus('positioned');
-      setPhase('positioned');
-      
-      // Auto-start scan directly
       setTimeout(() => {
-        setPhase('scanning');
-        setCurrentAngle('front');
-        
-        let p = 0;
-        const interval = setInterval(() => {
-          p += 3;
-          setProgress(p);
-          if (p === 33) setCurrentAngle('left');
-          if (p === 66) setCurrentAngle('right');
-          if (p >= 100) {
-            clearInterval(interval);
-            const computed = calculateBiometricsFromLandmarks(
-              { x: 200, y: 200 }, { x: 440, y: 200 },
-              { x: 210, y: 160 }, { x: 260, y: 145 },
-              { x: 310, y: 162 }, { x: 330, y: 162 },
-              { x: 380, y: 145 }, { x: 430, y: 160 },
-              14.2, 14.1
-            );
-            setBiometrics(computed);
-            setPhase('completed');
-          }
-        }, 30);
+        runScan();
       }, 500);
     }, 1000);
   };
@@ -202,6 +151,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   };
 
   const handleReset = () => {
+    scanStartedRef.current = false;
     setPhase('idle');
     setProgress(0);
     setFaceStatus('searching');
@@ -224,7 +174,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           <Scan className="w-4 h-4" />
           {phase === 'idle' && 'Initialisation...'}
           {phase === 'detecting' && 'Détection en cours...'}
-          {phase === 'positioned' && 'Visage détecté ✓'}
           {phase === 'scanning' && `Scan ${currentAngle.toUpperCase()}...`}
           {phase === 'completed' && 'Scan terminé ✓'}
         </div>
@@ -232,7 +181,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
         <h2 className="text-2xl sm:text-3xl font-serif font-bold text-white">
           {phase === 'idle' && 'Placez votre visage dans le cadre'}
           {phase === 'detecting' && 'Recherche de votre visage...'}
-          {phase === 'positioned' && 'Parfait ! Lancez le scan'}
           {phase === 'scanning' && currentAngle === 'front' && 'Regardez droit devant'}
           {phase === 'scanning' && currentAngle === 'left' && 'Tournez à GAUCHE'}
           {phase === 'scanning' && currentAngle === 'right' && 'Tournez à DROITE'}
@@ -241,7 +189,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
 
         <p className="text-sm text-gray-300">
           {phase === 'scanning' && 'Restez immobile pendant l\'analyse'}
-          {phase === 'positioned' && 'Le scanner va analyser vos sourcils sous 3 angles'}
+          {phase === 'detecting' && 'Le scan démarrera automatiquement'}
           {phase === 'completed' && 'Prêt pour la personnalisation en Studio 3D'}
         </p>
 
@@ -262,8 +210,8 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
               Comment fonctionne le scanner
             </h4>
             <div className="space-y-2 text-xs text-gray-300">
-              <p>📸 <strong className="text-white">1. Caméra</strong> — Placez votre visage dans l&apos;ovale vert</p>
-              <p>🔄 <strong className="text-white">2. Rotation</strong> — Suivez les instructions pour tourner gauche/droite</p>
+              <p>📸 <strong className="text-white">1. Caméra</strong> — Placez votre visage dans l&apos;ovale</p>
+              <p>🔄 <strong className="text-white">2. Rotation</strong> — Le scan capture 3 angles automatiquement</p>
               <p>📊 <strong className="text-white">3. Analyse</strong> — Le système mesure vos sourcils au 0.1mm</p>
               <p>🖨️ <strong className="text-white">4. Moule</strong> — Un fichier STL personnalisé est généré</p>
             </div>
@@ -304,7 +252,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       >
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* VIDEO */}
         <video
           ref={videoRef}
           playsInline
@@ -315,7 +262,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           style={{ zIndex: 1 }}
         />
 
-        {/* No camera fallback */}
         {!cameraActive && (
           <div className="absolute inset-0 bg-gradient-to-b from-obsidian-card to-obsidian flex flex-col items-center justify-center p-8 text-center space-y-4" style={{ zIndex: 1 }}>
             <Camera className="w-16 h-16 text-roseGold animate-pulse" />
@@ -324,13 +270,10 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           </div>
         )}
 
-        {/* FACE MESH OVERLAY */}
         <FaceMeshCanvas
           isScanning={phase === 'scanning'}
           onFaceStatus={handleFaceStatus}
         />
-
-        {/* Labels are now drawn on the canvas at actual landmark positions */}
 
         {/* Progress bar */}
         <div className="absolute bottom-4 left-4 right-4 space-y-2 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border" style={{ zIndex: 30 }}>
@@ -381,7 +324,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           </button>
         )}
 
-        {phase !== 'idle' && phase !== 'detecting' && (
+        {phase !== 'idle' && (
           <button onClick={handleReset}
             className="w-full py-3 rounded-xl bg-obsidian border border-obsidian-border text-gray-400 text-xs font-medium hover:bg-obsidian-light hover:text-white transition-all flex items-center justify-center gap-2"
           >

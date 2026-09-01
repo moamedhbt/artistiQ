@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { Sparkles, ArrowRight, ShieldCheck, Cpu, Box } from 'lucide-react';
+import { Camera, ArrowRight, ShieldCheck, Cpu, Box, Sparkles } from 'lucide-react';
 import { createEyebrowStencil3DGeometry } from '@/lib/stlGenerator';
 import { DEFAULT_CUSTOM_PARAMS, DEFAULT_BIOMETRICS } from '@/lib/biometrics';
 
@@ -13,42 +13,46 @@ interface MainHeroSectionProps {
 export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan }) => {
   const mountRef = useRef<HTMLDivElement>(null);
 
-  // Cyber-Luxury 3D Canvas with Rose Gold Dust Particles & Interactive Mouse Movement
+  // Photorealistic 3D Eyebrow Stamp Canvas
   useEffect(() => {
     if (!mountRef.current) return;
 
     const width = mountRef.current.clientWidth || 400;
-    const height = mountRef.current.clientHeight || 380;
+    const height = mountRef.current.clientHeight || 350;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#0B0A0F');
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 150);
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+    camera.position.set(0, 5, 95);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
-    // Dark Luxury Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    // Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     scene.add(ambientLight);
 
-    const dirLight1 = new THREE.DirectionalLight(0xd8a499, 2.8);
-    dirLight1.position.set(80, 80, 80);
+    const dirLight1 = new THREE.DirectionalLight(0xd8a499, 3.0); // Rose Gold Key Light
+    dirLight1.position.set(60, 80, 80);
     scene.add(dirLight1);
 
-    const dirLight2 = new THREE.DirectionalLight(0x00f2fe, 1.8);
-    dirLight2.position.set(-80, -80, -80);
+    const dirLight2 = new THREE.DirectionalLight(0xe6c687, 1.5); // Champagne Fill Light
+    dirLight2.position.set(-60, -50, 60);
     scene.add(dirLight2);
 
+    const dirLight3 = new THREE.DirectionalLight(0x00f2fe, 1.0); // Subtle Rim Light
+    dirLight3.position.set(0, -80, -60);
+    scene.add(dirLight3);
+
     // Rose Gold Dust Particles
-    const particleCount = 120;
+    const particleCount = 80;
     const particleGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     for (let i = 0; i < particleCount * 3; i++) {
-      positions[i] = (Math.random() - 0.5) * 200;
+      positions[i] = (Math.random() - 0.5) * 160;
     }
     particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
@@ -56,13 +60,14 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
       color: 0xd8a499,
       size: 1.5,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.5,
     });
     const particles = new THREE.Points(particleGeo, particleMat);
     scene.add(particles);
 
     const { stencilMesh } = createEyebrowStencil3DGeometry(DEFAULT_CUSTOM_PARAMS, DEFAULT_BIOMETRICS);
 
+    // Polished Rose-Gold Metallic Material
     const goldMaterial = new THREE.MeshStandardMaterial({
       color: 0xd8a499,
       metalness: 0.85,
@@ -70,17 +75,10 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
     });
 
     const mesh = new THREE.Mesh(stencilMesh, goldMaterial);
+    // Face the camera directly tilted slightly
+    mesh.rotation.x = -0.15;
+    mesh.rotation.y = 0.25;
     scene.add(mesh);
-
-    // Cyan Wireframe Overlay
-    const cyanWireMat = new THREE.MeshBasicMaterial({
-      color: 0x00f2fe,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.2,
-    });
-    const wireMesh = new THREE.Mesh(stencilMesh, cyanWireMat);
-    scene.add(wireMesh);
 
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
@@ -97,8 +95,6 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
 
       mesh.rotation.y += deltaX * 0.01;
       mesh.rotation.x += deltaY * 0.01;
-      wireMesh.rotation.y += deltaX * 0.01;
-      wireMesh.rotation.x += deltaY * 0.01;
 
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
@@ -117,7 +113,6 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
       animationFrameId = requestAnimationFrame(animate);
       if (!isDragging) {
         mesh.rotation.y += 0.005;
-        wireMesh.rotation.y += 0.005;
         particles.rotation.y += 0.001;
       }
       renderer.render(scene, camera);
@@ -156,7 +151,7 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
         
         <div className="bg-obsidian-card border border-obsidian-border rounded-3xl p-8 lg:p-14 shadow-cyber-luxury grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
-          {/* Left Hook Statement */}
+          {/* Left Text */}
           <div className="lg:col-span-7 space-y-8 text-left">
             
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-obsidian border border-roseGold/30 text-roseGold text-xs font-serif italic shadow-rose-glow">
@@ -181,7 +176,8 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
                 onClick={onStartScan}
                 className="w-full sm:w-auto px-9 py-4 rounded-xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-serif tracking-widest text-xs uppercase font-bold shadow-rose-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group"
               >
-                <span>[ Découvrir Mon Empreinte ]</span>
+                <Camera className="w-4 h-4 text-obsidian" />
+                <span>Scanner Mon Visage</span>
                 <ArrowRight className="w-4 h-4 text-obsidian group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
@@ -195,7 +191,7 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
                 <Box className="w-4 h-4 text-roseGold" /> Fidélité Anatomique 1:1
               </span>
               <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-roseGold" /> Silicone Biocompatible
+                <ShieldCheck className="w-4 h-4 text-roseGold" /> Silicone Médical Souple
               </span>
             </div>
 
@@ -207,9 +203,9 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
               
               <div className="flex items-center justify-between border-b border-obsidian-border pb-3 text-xs font-serif italic text-roseGold">
                 <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-roseGold" /> WebGL 3D Canvas
+                  <Sparkles className="w-3.5 h-3.5 text-roseGold" /> Tampon Sur-Mesure 3D
                 </span>
-                <span className="text-neonCyan font-mono text-[11px]">AI SCAN MESH</span>
+                <span className="text-roseGold font-mono text-[11px]">OR ROSE SATINÉ</span>
               </div>
 
               {/* 3D Canvas */}
@@ -218,7 +214,7 @@ export const MainHeroSection: React.FC<MainHeroSectionProps> = ({ onStartScan })
               </div>
 
               <div className="text-xs font-serif italic text-gray-400 pt-1">
-                Faites pivoter avec votre doigt ou la souris
+                Faites pivoter le tampon avec votre doigt ou la souris
               </div>
 
             </div>

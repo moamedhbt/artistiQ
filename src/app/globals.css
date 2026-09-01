@@ -3,8 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-pearl text-charcoal font-sans antialiased selection:bg-roseGold-light selection:text-charcoal min-h-screen;
+    @apply bg-obsidian text-gray-100 font-sans antialiased selection:bg-roseGold selection:text-obsidian min-h-screen;
   }
 }
 
@@ -17,8 +20,21 @@
   }
 }
 
+@keyframes laserSweep {
+  0%, 100% {
+    top: 0%;
+  }
+  50% {
+    top: 100%;
+  }
+}
+
 .animate-spin-slow {
   animation: spinSlow 20s linear infinite;
+}
+
+.animate-laser-sweep {
+  animation: laserSweep 3s ease-in-out infinite;
 }
 
 /* Custom scrollbars */
@@ -28,14 +44,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #F9F8F6;
+  background: #0F0E13;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #E6E0DA;
+  background: #282436;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #C89388;
+  background: #D8A499;
 }

@@ -8,37 +8,32 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        pearl: {
-          DEFAULT: '#F9F8F6',
-          dark: '#F0ECE8',
-          card: '#FFFFFF',
-          border: '#E6E0DA',
+        obsidian: {
+          DEFAULT: '#0F0E13',
+          card: '#181620',
+          border: '#282436',
+          light: '#221F2E',
         },
         roseGold: {
-          DEFAULT: '#C89388',
-          light: '#F7ECE8',
-          dark: '#A66E70',
+          DEFAULT: '#D8A499',
+          light: '#F8DFD4',
+          dark: '#C89388',
+          metallic: '#E6C687',
         },
-        charcoal: {
-          DEFAULT: '#1E2025',
-          button: '#2B2E36',
-          buttonHover: '#1A1C22',
-          muted: '#656975',
-        },
-        iridescent: {
-          start: '#F3E5F5',
-          mid: '#E1F5FE',
-          end: '#FFF3E0',
+        neonCyan: {
+          DEFAULT: '#00F2FE',
+          glow: 'rgba(0, 242, 254, 0.25)',
         }
       },
       fontFamily: {
-        serif: ['Playfair Display', 'Cormorant Garamond', 'Didot', 'serif'],
+        serif: ['Playfair Display', 'Cormorant Garamond', 'Didot', 'Georgia', 'serif'],
         sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'luxury': '0 25px 60px rgba(0, 0, 0, 0.06)',
-        'button-shadow': '0 12px 30px rgba(43, 46, 54, 0.2)',
-        'pearlescent': '0 8px 32px 0 rgba(200, 147, 136, 0.15)',
+        'dark-luxury': '0 25px 60px rgba(0, 0, 0, 0.6)',
+        'rose-glow': '0 0 35px rgba(216, 164, 153, 0.25)',
+        'cyan-glow': '0 0 35px rgba(0, 242, 254, 0.25)',
+        'button-glow': '0 10px 30px rgba(216, 164, 153, 0.3)',
       }
     },
   },

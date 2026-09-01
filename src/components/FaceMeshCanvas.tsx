@@ -11,11 +11,12 @@ interface FaceMeshCanvasProps {
 // MediaPipe Face Mesh landmark indices
 const LEFT_EYEBROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
 const RIGHT_EYEBROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
-const LEFT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133];
-const RIGHT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263];
+const LEFT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
+const RIGHT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398];
 const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 10];
 const NOSE_BRIDGE = [168, 6, 197, 195, 5, 4];
-const LIPS = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
+const NOSE_TIP = [1];
+const LIPS_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
 
 export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
   isScanning,
@@ -27,7 +28,9 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
   const landmarksRef = useRef<any[]>([]);
   const faceMeshRef = useRef<any>(null);
   const [isReady, setIsReady] = useState(false);
-  const [faceStatus, setFaceStatus] = useState<'searching' | 'detected' | 'positioned'>('searching');
+  const faceStatusRef = useRef<'searching' | 'detected' | 'positioned'>('searching');
+  const faceLostCounterRef = useRef(0);
+  const faceDetectedCounterRef = useRef(0);
 
   // Initialize MediaPipe Face Mesh
   useEffect(() => {
@@ -41,7 +44,6 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
 
         const faceMesh = new FaceMesh({
           locateFile: (file: string) => {
-            // Try CDN first (most reliable), fallback to local
             return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`;
           },
         });
@@ -55,22 +57,35 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
 
         faceMesh.onResults((results: any) => {
           if (cancelled) return;
+          
           if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
             landmarksRef.current = results.multiFaceLandmarks[0];
             onLandmarksDetected?.(results.multiFaceLandmarks[0]);
             
-            if (faceStatus === 'searching') {
-              setFaceStatus('detected');
+            faceLostCounterRef.current = 0;
+            faceDetectedCounterRef.current++;
+            
+            // Need 10 consecutive frames with face to confirm detection
+            if (faceDetectedCounterRef.current >= 10 && faceStatusRef.current === 'searching') {
+              faceStatusRef.current = 'detected';
               onFaceStatus?.('detected');
+              
+              // After 30 more frames (stable), mark as positioned
               setTimeout(() => {
-                setFaceStatus('positioned');
-                onFaceStatus?.('positioned');
-              }, 1000);
+                if (faceDetectedCounterRef.current >= 10) {
+                  faceStatusRef.current = 'positioned';
+                  onFaceStatus?.('positioned');
+                }
+              }, 1500);
             }
           } else {
             landmarksRef.current = [];
-            if (faceStatus !== 'searching') {
-              setFaceStatus('searching');
+            faceDetectedCounterRef.current = 0;
+            faceLostCounterRef.current++;
+            
+            // Only switch to searching after 30 frames without face (prevents flickering)
+            if (faceLostCounterRef.current >= 30 && faceStatusRef.current !== 'searching') {
+              faceStatusRef.current = 'searching';
               onFaceStatus?.('searching');
             }
           }
@@ -85,12 +100,12 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
         setTimeout(() => {
           if (!cancelled) {
             console.log('Using simulated detection');
-            setFaceStatus('detected');
+            faceStatusRef.current = 'detected';
             onFaceStatus?.('detected');
             setTimeout(() => {
-              setFaceStatus('positioned');
+              faceStatusRef.current = 'positioned';
               onFaceStatus?.('positioned');
-            }, 1000);
+            }, 1500);
           }
         }, 3000);
       }
@@ -136,14 +151,14 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
         canvas.width = 400;
         canvas.height = 600;
       }
-      drawOverlay(ctx, canvas.width, canvas.height, timestamp / 1000, landmarksRef.current, faceStatus, isScanning);
+      drawOverlay(ctx, canvas.width, canvas.height, timestamp / 1000, landmarksRef.current, faceStatusRef.current, isScanning);
 
       animRef.current = requestAnimationFrame(animate);
     };
 
     animRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animRef.current);
-  }, [isReady, faceStatus, isScanning, processFrame]);
+  }, [isReady, isScanning, processFrame]);
 
   return (
     <canvas
@@ -172,10 +187,6 @@ function drawOverlay(
   const isPositioned = faceStatus === 'positioned';
   const cx = w / 2;
   const cy = h / 2;
-
-  // Colors based on status
-  const mainColor = isPositioned ? 'rgba(0, 255, 136, 0.7)' : hasFace ? 'rgba(0, 242, 254, 0.6)' : 'rgba(0, 242, 254, 0.3)';
-  const glowColor = isPositioned ? 'rgba(0, 255, 136, 0.3)' : 'rgba(0, 242, 254, 0.2)';
 
   if (hasFace) {
     // ── DRAW DETECTED FACE MESH ──
@@ -261,15 +272,25 @@ function drawFaceMesh(
     dashed: true,
   });
 
+  // Nose tip
+  const noseTip = getPoint(1);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(noseTip.x, noseTip.y, 4, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(216, 164, 153, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
   // Lips
-  drawPath(ctx, LIPS, getPoint, {
+  drawPath(ctx, LIPS_OUTER, getPoint, {
     stroke: 'rgba(216, 164, 153, 0.4)',
     width: 1.5,
     close: true,
   });
 
   // Key landmark dots
-  const keyPoints = [...LEFT_EYEBROW, ...RIGHT_EYEBROW, ...LEFT_EYE.slice(0, 4), ...RIGHT_EYE.slice(0, 4), 1, 61, 291];
+  const keyPoints = [...LEFT_EYEBROW, ...RIGHT_EYEBROW, ...LEFT_EYE.slice(0, 6), ...RIGHT_EYE.slice(0, 6), 1, 61, 291];
   keyPoints.forEach((idx, i) => {
     const p = getPoint(idx);
     const isBrow = LEFT_EYEBROW.includes(idx) || RIGHT_EYEBROW.includes(idx);
@@ -286,10 +307,79 @@ function drawFaceMesh(
     ctx.restore();
   });
 
-  // Measurement lines when positioned
+  // ── DETECTION LABELS (positioned at actual landmarks) ──
   if (isPositioned) {
+    drawDetectionLabels(ctx, getPoint, w);
     drawMeasurements(ctx, getPoint);
   }
+}
+
+function drawDetectionLabels(
+  ctx: CanvasRenderingContext2D,
+  getPoint: (idx: number) => { x: number; y: number },
+  w: number
+) {
+  ctx.save();
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+
+  // Left eyebrow label
+  const leftBrowCenter = getPoint(107);
+  drawLabel(ctx, leftBrowCenter.x, leftBrowCenter.y - 20, 'SOURCIL G', '#D8A499', 'rgba(0, 255, 136, 1)');
+
+  // Right eyebrow label
+  const rightBrowCenter = getPoint(336);
+  drawLabel(ctx, rightBrowCenter.x, rightBrowCenter.y - 20, 'SOURCIL D', '#D8A499', 'rgba(0, 255, 136, 1)');
+
+  // Left eye label
+  const leftEyeCenter = getPoint(33);
+  drawLabel(ctx, leftEyeCenter.x - 30, leftEyeCenter.y - 15, 'OEIL G', '#00F2FE', 'rgba(0, 255, 136, 1)');
+
+  // Right eye label
+  const rightEyeCenter = getPoint(362);
+  drawLabel(ctx, rightEyeCenter.x + 30, rightEyeCenter.y - 15, 'OEIL D', '#00F2FE', 'rgba(0, 255, 136, 1)');
+
+  // Nose label
+  const noseTip = getPoint(1);
+  drawLabel(ctx, noseTip.x, noseTip.y + 20, 'NEZ', '#00F2FE', 'rgba(0, 255, 136, 1)');
+
+  // Mouth label
+  const mouthCenter = getPoint(13);
+  drawLabel(ctx, mouthCenter.x, mouthCenter.y + 20, 'BOUCHE', '#D8A499', 'rgba(0, 255, 136, 1)');
+
+  ctx.restore();
+}
+
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  text: string,
+  textColor: string,
+  dotColor: string
+) {
+  const metrics = ctx.measureText(text);
+  const pw = metrics.width + 14;
+  const ph = 14;
+
+  // Background pill
+  ctx.fillStyle = 'rgba(11, 10, 15, 0.75)';
+  ctx.beginPath();
+  ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 7);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Status dot
+  ctx.beginPath();
+  ctx.arc(x - pw / 2 + 7, y, 2, 0, Math.PI * 2);
+  ctx.fillStyle = dotColor;
+  ctx.fill();
+
+  // Text
+  ctx.fillStyle = textColor;
+  ctx.fillText(text, x + 3, y + 3);
 }
 
 function drawPath(
@@ -425,7 +515,7 @@ function drawHUD(
 
   // Status indicator
   const statusColor = faceStatus === 'positioned' ? '#00FF88' : hasFace ? '#00F2FE' : '#FF6B6B';
-  const statusText = faceStatus === 'positioned' ? 'VISAGE DÉTECTÉ' : hasFace ? 'RECHERCHE...' : 'AUCUN VISAGE';
+  const statusText = faceStatus === 'positioned' ? 'VISAGE DÉTECTÉ ✓' : hasFace ? 'RECHERCHE...' : 'AUCUN VISAGE';
 
   ctx.fillStyle = statusColor;
   ctx.textAlign = 'left';

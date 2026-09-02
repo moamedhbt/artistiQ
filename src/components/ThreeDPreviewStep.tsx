@@ -10,6 +10,7 @@ interface ThreeDPreviewStepProps {
   clientInfo: ClientInfo;
   biometrics: BiometricMeasurements;
   customParams: EyebrowCustomParams;
+  faceLandmarks?: { x: number; y: number; z: number }[];
   onConfirmOrder: () => void;
   onBack: () => void;
 }
@@ -18,6 +19,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
   clientInfo,
   biometrics,
   customParams,
+  faceLandmarks,
   onConfirmOrder,
   onBack,
 }) => {
@@ -62,7 +64,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
     scene.add(pointLight);
 
     // Create geometries
-    const { stencilMesh, moldMesh } = createEyebrowStencil3DGeometry(customParams, biometrics);
+    const { stencilMesh, moldMesh } = createEyebrowStencil3DGeometry(customParams, biometrics, faceLandmarks);
 
     // Stencil material (Rose Gold)
     const stencilMaterial = new THREE.MeshStandardMaterial({
@@ -169,9 +171,9 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
   const handleDownloadSTL = () => {
     setIsGeneratingSTL(true);
     try {
-      const { moldMesh } = createEyebrowStencil3DGeometry(customParams, biometrics);
+      const { moldMesh } = createEyebrowStencil3DGeometry(customParams, biometrics, faceLandmarks);
       const buffer = exportBufferGeometryToBinarySTL(moldMesh);
-      const filename = `artistiQ_moule_${clientInfo.fullName.replace(/\s+/g, '_')}_${customParams.styleId}.stl`;
+      const filename = `artistiQ_pochoir_${clientInfo.fullName.replace(/\s+/g, '_')}_${customParams.styleId}.stl`;
       downloadSTLFile(buffer, filename);
       setStlDownloaded(true);
     } catch (e) {

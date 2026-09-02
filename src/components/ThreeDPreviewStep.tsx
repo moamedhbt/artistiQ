@@ -257,9 +257,9 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
             </h3>
 
             {/* Info box */}
-            <div className="p-3 rounded-xl bg-biometric-cyan/5 border border-biometric-cyan/20 text-xs text-biometric-cyan flex items-start gap-2">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <p>Le fichier STL contient le <strong>moule</strong> (négatif) pour couler le silicone. Le pochoir (positif) est créé par coulée.</p>
+            <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>Le fichier STL est le <strong>pochoir final</strong> — imprimable directement en silicone flexible (TPU). Pas de moule nécessaire.</p>
             </div>
 
             {/* Client Info */}
@@ -299,37 +299,41 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
               </div>
             </div>
 
-            {/* Mold specs */}
+            {/* Stencil specs */}
             <div className="p-4 rounded-2xl bg-obsidian border border-obsidian-border space-y-2 text-xs font-mono">
-              <p className="text-[10px] text-gray-400 uppercase mb-2">Spécifications du Moule</p>
+              <p className="text-[10px] text-gray-400 uppercase mb-2">Spécifications du Pochoir</p>
               <div className="flex justify-between text-gray-300">
-                <span>Parois:</span>
-                <span className="text-white font-bold">3mm</span>
+                <span>Épaisseur:</span>
+                <span className="text-white font-bold">{customParams.stencilThicknessMm}mm</span>
               </div>
               <div className="flex justify-between text-gray-300">
-                <span>Base:</span>
-                <span className="text-white font-bold">4mm</span>
+                <span>Dimensions:</span>
+                <span className="text-white font-bold">75 x 40mm</span>
               </div>
               <div className="flex justify-between text-gray-300">
-                <span>Canal coulée:</span>
-                <span className="text-white font-bold">8mm</span>
+                <span>Fenêtre sourcil:</span>
+                <span className="text-roseGold font-bold">Forme personnalisée</span>
               </div>
               <div className="flex justify-between text-gray-300">
                 <span>Encoche nez:</span>
+                <span className="text-emerald-400 font-bold">Incluse</span>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <span>Curvature front:</span>
                 <span className="text-emerald-400 font-bold">Incluse</span>
               </div>
             </div>
 
             {/* Production specs */}
             <div className="p-4 rounded-2xl bg-obsidian border border-obsidian-border space-y-2 text-xs font-mono">
-              <p className="text-[10px] text-gray-400 uppercase mb-2">Production</p>
+              <p className="text-[10px] text-gray-400 uppercase mb-2">Impression 3D</p>
               <div className="flex justify-between text-gray-300">
-                <span>Matière pochoir:</span>
-                <span className="text-emerald-400 font-bold">Silicone Pharmacie</span>
+                <span>Matériau:</span>
+                <span className="text-emerald-400 font-bold">TPU / Silicone flexible</span>
               </div>
               <div className="flex justify-between text-gray-300">
-                <span>Impression moule:</span>
-                <span className="text-roseGold font-bold">Résine 3D</span>
+                <span>Résolution:</span>
+                <span className="text-roseGold font-bold">0.1mm</span>
               </div>
               <div className="flex justify-between text-gray-300">
                 <span>Paiement:</span>
@@ -345,7 +349,7 @@ export const ThreeDPreviewStep: React.FC<ThreeDPreviewStepProps> = ({
                 className="w-full py-3.5 rounded-xl bg-obsidian border border-roseGold/40 text-roseGold text-xs font-mono font-bold hover:bg-roseGold/10 transition-all flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                <span>{stlDownloaded ? 'STL Téléchargé !' : 'Télécharger le Moule STL'}</span>
+                <span>{stlDownloaded ? 'STL Téléchargé !' : 'Télécharger le Pochoir STL'}</span>
               </button>
 
               <button

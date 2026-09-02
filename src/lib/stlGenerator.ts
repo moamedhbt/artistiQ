@@ -2,8 +2,8 @@ import { EyebrowCustomParams, BiometricMeasurements } from '@/types';
 import * as THREE from 'three';
 
 /**
- * Creates a professional eyebrow mold for silicone casting
- * Single clean geometry - no merging that could cause issues
+ * Creates a 3D printable eyebrow stencil
+ * The STL IS the final product - printed directly in flexible material (TPU/silicone)
  */
 export function createEyebrowStencil3DGeometry(
   params: EyebrowCustomParams,
@@ -11,27 +11,30 @@ export function createEyebrowStencil3DGeometry(
 ): { stencilMesh: THREE.BufferGeometry; moldMesh: THREE.BufferGeometry } {
   
   // ── DIMENSIONS (mm) ──
-  const frameW = 70;
-  const frameH = 38;
-  const frameDepth = params.stencilThicknessMm || 2.5;
-  const moldWall = 4;
-  const moldBase = 5;
-  const moldR = 8;
+  const frameW = 75;
+  const frameH = 40;
+  const frameDepth = params.stencilThicknessMm || 2.0;
+  const cornerR = 8;
 
-  // ── 1. STENCIL (the positive - what the client receives) ──
-  const stencilShape = createRoundedRect(frameW, frameH, 6);
+  // ── STENCIL SHAPE ──
+  const stencilShape = createRoundedRect(frameW, frameH, cornerR);
   
-  // Eyebrow window cutout
+  // Eyebrow window cutout (the key feature)
   const eyebrowWindow = createEyebrowWindow(params);
   stencilShape.holes.push(eyebrowWindow);
 
+  // Nose alignment notch
+  const noseNotch = createNoseNotch();
+  stencilShape.holes.push(noseNotch);
+
+  // Create geometry
   const stencilGeo = new THREE.ExtrudeGeometry(stencilShape, {
     steps: 1,
     depth: frameDepth,
     bevelEnabled: true,
-    bevelThickness: 0.3,
-    bevelSize: 0.3,
-    bevelSegments: 2,
+    bevelThickness: 0.4,
+    bevelSize: 0.4,
+    bevelSegments: 3,
   });
   stencilGeo.center();
 
@@ -39,45 +42,10 @@ export function createEyebrowStencil3DGeometry(
   applyForeheadCurvature(stencilGeo, biometrics.foreheadCurvatureRadiusMm || 78);
   stencilGeo.computeVertexNormals();
 
-  // ── 2. MOLD (the negative - for silicone casting) ──
-  // Create mold as a single shape with cavity
-  const moldW = frameW + moldWall * 2;
-  const moldH = frameH + moldWall * 2;
-  const moldD = moldBase + frameDepth + 3;
-
-  // Outer mold shape
-  const moldOuter = createRoundedRect(moldW, moldH, moldR);
-
-  // Inner cavity (where the stencil sits) - slightly smaller for tolerance
-  const cavityW = frameW - 0.3;
-  const cavityH = frameH - 0.3;
-  const moldInner = createRoundedRect(cavityW, cavityH, 5.5);
-  moldOuter.holes.push(moldInner);
-
-  // Eyebrow ridge (creates the window in the stencil)
-  const eyebrowRidge = createEyebrowRidge(params);
-  moldOuter.holes.push(eyebrowRidge);
-
-  const moldGeo = new THREE.ExtrudeGeometry(moldOuter, {
-    steps: 1,
-    depth: moldD,
-    bevelEnabled: true,
-    bevelThickness: 1,
-    bevelSize: 1,
-    bevelSegments: 3,
-  });
-  moldGeo.center();
-
-  // Position mold behind stencil
-  const moldPos = moldGeo.attributes.position;
-  for (let i = 0; i < moldPos.count; i++) {
-    moldPos.setZ(i, moldPos.getZ(i) - moldD / 2 - frameDepth / 2 - 3);
-  }
-  moldGeo.computeVertexNormals();
-
+  // For compatibility, moldMesh is the same as stencilMesh (we only need the stencil)
   return {
     stencilMesh: stencilGeo,
-    moldMesh: moldGeo,
+    moldMesh: stencilGeo,
   };
 }
 
@@ -104,88 +72,78 @@ function createRoundedRect(width: number, height: number, radius: number): THREE
 }
 
 /**
- * Creates the eyebrow window cutout for the stencil
+ * Creates the eyebrow window cutout
+ * This is the exact shape of the eyebrow - the key feature of the stencil
  */
 function createEyebrowWindow(params: EyebrowCustomParams): THREE.Path {
-  const len = (params.lengthMm || 52) * 0.5;
-  const arch = (params.archHeightMm || 13.5) * 0.25;
-  const thick = (params.thicknessMm || 6.5) * 0.75;
+  const len = (params.lengthMm || 52) * 0.55;
+  const arch = (params.archHeightMm || 13.5) * 0.3;
+  const thick = (params.thicknessMm || 6.5) * 0.8;
 
   const hole = new THREE.Path();
   
-  // Simple eyebrow shape - smooth curves
+  // Start at eyebrow head (inner corner near nose)
   hole.moveTo(-len / 2, 0);
   
-  // Top edge
+  // Top edge: head → arch → tail
+  // Smooth bezier curve following natural eyebrow shape
   hole.bezierCurveTo(
-    -len / 3, -arch * 0.8,
-    0, -arch,
-    len / 3, -arch * 0.5
+    -len / 3, -arch * 0.9,    // Control point 1: rises toward arch
+    len / 6, -arch * 1.1,     // Control point 2: near the peak
+    len / 3, -arch * 0.4      // End: past the arch, starting to descend
   );
   
-  // Tail
+  // Tail: curves down and back
   hole.bezierCurveTo(
-    len / 2, -arch * 0.2,
-    len / 2, thick / 3,
-    len / 3, thick / 2
+    len / 2, -arch * 0.1,     // Control: near the tail tip
+    len / 2, thick / 4,       // Control: curves back
+    len / 3, thick / 2        // End: bottom of tail
   );
   
-  // Bottom edge
+  // Bottom edge: tail → head
   hole.bezierCurveTo(
-    0, thick / 1.5,
-    -len / 3, thick / 2,
-    -len / 2, 0
+    len / 6, thick * 0.7,     // Control: follows bottom curve
+    -len / 4, thick / 2,      // Control: toward head
+    -len / 2, 0               // End: back to start
   );
 
   return hole;
 }
 
 /**
- * Creates the eyebrow ridge for the mold (negative of the window)
+ * Creates nose alignment notch
+ * Small triangular notch at the bottom center for positioning
  */
-function createEyebrowRidge(params: EyebrowCustomParams): THREE.Path {
-  // Slightly smaller than the window for tolerance
-  const len = (params.lengthMm || 52) * 0.47;
-  const arch = (params.archHeightMm || 13.5) * 0.23;
-  const thick = (params.thicknessMm || 6.5) * 0.7;
+function createNoseNotch(): THREE.Path {
+  const notch = new THREE.Path();
+  const w = 5;
+  const h = 3;
 
-  const ridge = new THREE.Path();
-  
-  ridge.moveTo(-len / 2, 0);
-  ridge.bezierCurveTo(
-    -len / 3, -arch * 0.7,
-    0, -arch * 0.9,
-    len / 3, -arch * 0.4
-  );
-  ridge.bezierCurveTo(
-    len / 2, -arch * 0.1,
-    len / 2, thick / 3,
-    len / 3, thick / 2
-  );
-  ridge.bezierCurveTo(
-    0, thick / 1.4,
-    -len / 3, thick / 2,
-    -len / 2, 0
-  );
+  notch.moveTo(-w / 2, 0);
+  notch.lineTo(0, -h);
+  notch.lineTo(w / 2, 0);
+  notch.closePath();
 
-  return ridge;
+  return notch;
 }
 
 /**
  * Applies forehead curvature to geometry
+ * Makes the stencil fit the natural curve of the forehead
  */
 function applyForeheadCurvature(geo: THREE.BufferGeometry, radius: number): void {
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const px = pos.getX(i);
     const absX = Math.min(Math.abs(px), radius - 1);
-    const z = -(radius - Math.sqrt(radius * radius - absX * absX)) * 0.12;
+    const z = -(radius - Math.sqrt(radius * radius - absX * absX)) * 0.15;
     pos.setZ(i, pos.getZ(i) + z);
   }
 }
 
 /**
  * Exports BufferGeometry to Binary STL
+ * Valid STL format compatible with all3D software and printers
  */
 export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry): ArrayBuffer {
   geometry.computeVertexNormals();
@@ -199,7 +157,7 @@ export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry):
   const view = new DataView(buf);
 
   // Header
-  const hdr = "artistiQ Eyebrow Mold STL";
+  const hdr = "artistiQ Eyebrow Stencil - 3D Printable";
   for (let i = 0; i < 80; i++) {
     view.setUint8(i, i < hdr.length ? hdr.charCodeAt(i) : 0);
   }

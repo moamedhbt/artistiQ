@@ -5,6 +5,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 interface FaceMeshCanvasProps {
   isScanning: boolean;
   onFaceStatus?: (status: 'searching' | 'detected' | 'positioned') => void;
+  onLandmarks?: (landmarks: { x: number; y: number; z: number }[]) => void;
 }
 
 // MediaPipe Face Mesh landmark indices
@@ -19,6 +20,7 @@ const LIPS_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270,
 export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
   isScanning,
   onFaceStatus,
+  onLandmarks,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +61,11 @@ export const FaceMeshCanvas: React.FC<FaceMeshCanvasProps> = ({
           
           if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
             landmarksRef.current = results.multiFaceLandmarks[0];
+            
+            // Send landmarks to parent
+            if (onLandmarks) {
+              onLandmarks(landmarksRef.current);
+            }
             
             faceLostCounterRef.current = 0;
             faceDetectedCounterRef.current++;

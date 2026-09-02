@@ -1,23 +1,28 @@
 import { EyebrowCustomParams, BiometricMeasurements } from '@/types';
 import * as THREE from 'three';
 
+// MediaPipe Face Mesh eyebrow landmark indices
+const LEFT_EYEBROW_INDICES = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
+const RIGHT_EYEBROW_INDICES = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
+
 /**
- * Creates a professional 3D printable eyebrow stencil
- * Simple, clean geometry - a flat plate with an eyebrow-shaped window
+ * Creates a 3D printable eyebrow stencil using actual face landmarks
+ * The window shape matches the client's real eyebrow contour
  */
 export function createEyebrowStencil3DGeometry(
   params: EyebrowCustomParams,
-  biometrics: BiometricMeasurements
+  biometrics: BiometricMeasurements,
+  faceLandmarks?: { x: number; y: number; z: number }[]
 ): { stencilMesh: THREE.BufferGeometry; moldMesh: THREE.BufferGeometry } {
   
   // ── DIMENSIONS (mm) ──
-  const W = 80;  // Width
-  const H = 40;  // Height
-  const D = 2;   // Thickness
+  const W = 80;
+  const H = 45;
+  const D = params.stencilThicknessMm || 2.0;
 
   // ── OUTER SHAPE: Rounded rectangle ──
   const outer = new THREE.Shape();
-  const r = 5;
+  const r = 6;
   outer.moveTo(-W/2 + r, -H/2);
   outer.lineTo(W/2 - r, -H/2);
   outer.quadraticCurveTo(W/2, -H/2, W/2, -H/2 + r);
@@ -28,37 +33,29 @@ export function createEyebrowStencil3DGeometry(
   outer.lineTo(-W/2, -H/2 + r);
   outer.quadraticCurveTo(-W/2, -H/2, -W/2 + r, -H/2);
 
-  // ── EYEBROW WINDOW: Simple almond shape ──
-  const len = (params.lengthMm || 52) * 0.5;
-  const arch = (params.archHeightMm || 13.5) * 0.25;
-  
-  const window = new THREE.Path();
-  
-  // Simple almond/eye shape for the eyebrow window
-  // This creates a clean, recognizable stencil window
-  window.moveTo(-len, 0);
-  
-  // Top curve
-  window.bezierCurveTo(
-    -len * 0.5, -arch * 1.5,
-    len * 0.5, -arch * 1.5,
-    len, 0
-  );
-  
-  // Bottom curve
-  window.bezierCurveTo(
-    len * 0.5, arch * 1.5,
-    -len * 0.5, arch * 1.5,
-    -len, 0
-  );
-  
-  outer.holes.push(window);
+  // ── EYEBROW WINDOW: Use landmarks if available ──
+  if (faceLandmarks && faceLandmarks.length > 0) {
+    // Use actual eyebrow landmarks for left eyebrow
+    const leftBrowPoints = LEFT_EYEBROW_INDICES.map(i => faceLandmarks[i]).filter(Boolean);
+    if (leftBrowPoints.length >= 5) {
+      const window = createWindowFromLandmarks(leftBrowPoints, W, H);
+      outer.holes.push(window);
+    } else {
+      // Fallback to parametric shape
+      const window = createParametricEyebrowWindow(params);
+      outer.holes.push(window);
+    }
+  } else {
+    // No landmarks - use parametric shape
+    const window = createParametricEyebrowWindow(params);
+    outer.holes.push(window);
+  }
 
-  // ── NOSE NOTCH: Small triangle at bottom ──
+  // ── NOSE NOTCH ──
   const notch = new THREE.Path();
-  notch.moveTo(-3, -H/2);
-  notch.lineTo(0, -H/2 + 4);
-  notch.lineTo(3, -H/2);
+  notch.moveTo(-4, -H/2);
+  notch.lineTo(0, -H/2 + 5);
+  notch.lineTo(4, -H/2);
   notch.closePath();
   outer.holes.push(notch);
 
@@ -66,7 +63,10 @@ export function createEyebrowStencil3DGeometry(
   const geo = new THREE.ExtrudeGeometry(outer, {
     steps: 1,
     depth: D,
-    bevelEnabled: false,
+    bevelEnabled: true,
+    bevelThickness: 0.3,
+    bevelSize: 0.3,
+    bevelSegments: 2,
   });
 
   geo.center();
@@ -76,6 +76,109 @@ export function createEyebrowStencil3DGeometry(
     stencilMesh: geo,
     moldMesh: geo,
   };
+}
+
+/**
+ * Creates eyebrow window from actual face landmarks
+ * Converts normalized coordinates to stencil coordinates
+ */
+function createWindowFromLandmarks(
+  landmarks: { x: number; y: number; z: number }[],
+  frameW: number,
+  frameH: number
+): THREE.Path {
+  // Convert normalized coordinates (0-1) to stencil coordinates (mm)
+  // The landmarks are in normalized screen space, we need to scale them
+  
+  // Find bounding box of landmarks
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  landmarks.forEach(p => {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  });
+  
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  
+  // Scale to fit in stencil (leave margin)
+  const scaleX = (frameW * 0.6) / rangeX;
+  const scaleY = (frameH * 0.5) / rangeY;
+  const scale = Math.min(scaleX, scaleY);
+  
+  // Create path from landmarks
+  const path = new THREE.Path();
+  
+  // Convert landmarks to stencil coordinates
+  const points = landmarks.map(p => ({
+    x: (p.x - centerX) * scale,
+    y: -(p.y - centerY) * scale, // Flip Y axis
+  }));
+  
+  // Start at first point
+  path.moveTo(points[0].x, points[0].y);
+  
+  // Use bezier curves for smooth shape
+  if (points.length >= 4) {
+    // Use cubic bezier through points
+    for (let i = 1; i < points.length - 2; i++) {
+      const p0 = points[i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || points[i + 1];
+      
+      path.bezierCurveTo(
+        p1.x, p1.y,
+        p2.x, p2.y,
+        (p2.x + p3.x) / 2, (p2.y + p3.y) / 2
+      );
+    }
+    
+    // Close the shape
+    const last = points[points.length - 1];
+    const first = points[0];
+    path.bezierCurveTo(
+      last.x, last.y,
+      first.x, first.y,
+      first.x, first.y
+    );
+  } else {
+    // Simple line through points
+    for (let i = 1; i < points.length; i++) {
+      path.lineTo(points[i].x, points[i].y);
+    }
+    path.closePath();
+  }
+  
+  return path;
+}
+
+/**
+ * Creates parametric eyebrow window (fallback when no landmarks)
+ */
+function createParametricEyebrowWindow(params: EyebrowCustomParams): THREE.Path {
+  const len = (params.lengthMm || 52) * 0.5;
+  const arch = (params.archHeightMm || 13.5) * 0.25;
+  
+  const path = new THREE.Path();
+  
+  // Almond shape
+  path.moveTo(-len, 0);
+  path.bezierCurveTo(
+    -len * 0.5, -arch * 1.5,
+    len * 0.5, -arch * 1.5,
+    len, 0
+  );
+  path.bezierCurveTo(
+    len * 0.5, arch * 1.5,
+    -len * 0.5, arch * 1.5,
+    -len, 0
+  );
+  
+  return path;
 }
 
 /**

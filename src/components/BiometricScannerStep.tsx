@@ -9,7 +9,7 @@ import dynamic from 'next/dynamic';
 const FaceMeshCanvas = dynamic(() => import('./FaceMeshCanvas'), { ssr: false });
 
 interface BiometricScannerStepProps {
-  onCompleted: (biometrics: BiometricMeasurements, snapshots?: { front?: string; left?: string; right?: string }) => void;
+  onCompleted: (biometrics: BiometricMeasurements, snapshots?: { front?: string; left?: string; right?: string }, landmarks?: { x: number; y: number; z: number }[]) => void;
   onBack: () => void;
 }
 
@@ -27,6 +27,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   
   const [snapshots, setSnapshots] = useState<{ front?: string; left?: string; right?: string }>({});
   const [biometrics, setBiometrics] = useState<BiometricMeasurements>(DEFAULT_BIOMETRICS);
+  const [faceLandmarks, setFaceLandmarks] = useState<{ x: number; y: number; z: number }[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -95,6 +96,11 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     }
   }, [runScan]);
 
+  // Handle landmarks from FaceMeshCanvas
+  const handleLandmarks = useCallback((landmarks: { x: number; y: number; z: number }[]) => {
+    setFaceLandmarks(landmarks);
+  }, []);
+
   // Start camera
   const startCamera = async () => {
     setCameraError(null);
@@ -147,7 +153,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
 
   const handleFinish = () => {
     stopCamera();
-    onCompleted(biometrics, snapshots);
+    onCompleted(biometrics, snapshots, faceLandmarks);
   };
 
   const handleReset = () => {
@@ -273,6 +279,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
         <FaceMeshCanvas
           isScanning={phase === 'scanning'}
           onFaceStatus={handleFaceStatus}
+          onLandmarks={handleLandmarks}
         />
 
         {/* Progress bar */}

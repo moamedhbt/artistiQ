@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 /**
  * Creates a professional eyebrow mold for silicone casting
- * Uses real biometric measurements for precision
+ * Single clean geometry - no merging that could cause issues
  */
 export function createEyebrowStencil3DGeometry(
   params: EyebrowCustomParams,
@@ -11,13 +11,12 @@ export function createEyebrowStencil3DGeometry(
 ): { stencilMesh: THREE.BufferGeometry; moldMesh: THREE.BufferGeometry } {
   
   // ── DIMENSIONS (mm) ──
-  const frameW = 75;
-  const frameH = 42;
+  const frameW = 70;
+  const frameH = 38;
   const frameDepth = params.stencilThicknessMm || 2.5;
-  const moldWallThickness = 3;
-  const moldBaseThickness = 4;
-  const pourChannelWidth = 8;
-  const pourChannelHeight = 15;
+  const moldWall = 4;
+  const moldBase = 5;
+  const moldR = 8;
 
   // ── 1. STENCIL (the positive - what the client receives) ──
   const stencilShape = createRoundedRect(frameW, frameH, 6);
@@ -25,10 +24,6 @@ export function createEyebrowStencil3DGeometry(
   // Eyebrow window cutout
   const eyebrowWindow = createEyebrowWindow(params);
   stencilShape.holes.push(eyebrowWindow);
-
-  // Nose alignment notch
-  const noseNotch = createNoseNotch();
-  stencilShape.holes.push(noseNotch);
 
   const stencilGeo = new THREE.ExtrudeGeometry(stencilShape, {
     steps: 1,
@@ -45,22 +40,25 @@ export function createEyebrowStencil3DGeometry(
   stencilGeo.computeVertexNormals();
 
   // ── 2. MOLD (the negative - for silicone casting) ──
-  const moldW = frameW + moldWallThickness * 2;
-  const moldH = frameH + moldWallThickness * 2;
-  const moldD = moldBaseThickness + frameDepth + 2;
+  // Create mold as a single shape with cavity
+  const moldW = frameW + moldWall * 2;
+  const moldH = frameH + moldWall * 2;
+  const moldD = moldBase + frameDepth + 3;
 
   // Outer mold shape
-  const moldShape = createRoundedRect(moldW, moldH, 8);
+  const moldOuter = createRoundedRect(moldW, moldH, moldR);
 
-  // Inner cavity (where the stencil sits)
-  const cavityShape = createRoundedRect(frameW - 0.5, frameH - 0.5, 5.5);
-  moldShape.holes.push(cavityShape);
+  // Inner cavity (where the stencil sits) - slightly smaller for tolerance
+  const cavityW = frameW - 0.3;
+  const cavityH = frameH - 0.3;
+  const moldInner = createRoundedRect(cavityW, cavityH, 5.5);
+  moldOuter.holes.push(moldInner);
 
   // Eyebrow ridge (creates the window in the stencil)
   const eyebrowRidge = createEyebrowRidge(params);
-  moldShape.holes.push(eyebrowRidge);
+  moldOuter.holes.push(eyebrowRidge);
 
-  const moldGeo = new THREE.ExtrudeGeometry(moldShape, {
+  const moldGeo = new THREE.ExtrudeGeometry(moldOuter, {
     steps: 1,
     depth: moldD,
     bevelEnabled: true,
@@ -73,27 +71,13 @@ export function createEyebrowStencil3DGeometry(
   // Position mold behind stencil
   const moldPos = moldGeo.attributes.position;
   for (let i = 0; i < moldPos.count; i++) {
-    moldPos.setZ(i, moldPos.getZ(i) - moldD / 2 - frameDepth / 2 - 2);
+    moldPos.setZ(i, moldPos.getZ(i) - moldD / 2 - frameDepth / 2 - 3);
   }
   moldGeo.computeVertexNormals();
 
-  // ── 3. POUR CHANNEL ──
-  const channelGeo = createPourChannel(pourChannelWidth, pourChannelHeight, moldD);
-  
-  // Position channel on top of mold
-  const channelPos = channelGeo.attributes.position;
-  for (let i = 0; i < channelPos.count; i++) {
-    channelPos.setY(i, channelPos.getY(i) + moldH / 2 + pourChannelHeight / 2);
-    channelPos.setZ(i, channelPos.getZ(i) - moldD / 2 - frameDepth / 2 - 2);
-  }
-  channelGeo.computeVertexNormals();
-
-  // Merge mold and channel
-  const mergedMoldGeo = mergeGeometries([moldGeo, channelGeo]);
-
   return {
     stencilMesh: stencilGeo,
-    moldMesh: mergedMoldGeo,
+    moldMesh: moldGeo,
   };
 }
 
@@ -123,33 +107,33 @@ function createRoundedRect(width: number, height: number, radius: number): THREE
  * Creates the eyebrow window cutout for the stencil
  */
 function createEyebrowWindow(params: EyebrowCustomParams): THREE.Path {
-  const len = (params.lengthMm || 52) * 0.55;
-  const arch = (params.archHeightMm || 13.5) * 0.3;
-  const thick = (params.thicknessMm || 6.5) * 0.85;
+  const len = (params.lengthMm || 52) * 0.5;
+  const arch = (params.archHeightMm || 13.5) * 0.25;
+  const thick = (params.thicknessMm || 6.5) * 0.75;
 
   const hole = new THREE.Path();
   
-  // Start at eyebrow head
+  // Simple eyebrow shape - smooth curves
   hole.moveTo(-len / 2, 0);
   
-  // Top edge: head → arch → tail
+  // Top edge
   hole.bezierCurveTo(
-    -len / 4, -arch,
-    len / 6, -arch * 1.2,
-    len / 3, -arch * 0.3
+    -len / 3, -arch * 0.8,
+    0, -arch,
+    len / 3, -arch * 0.5
   );
   
-  // Tail curve
+  // Tail
   hole.bezierCurveTo(
-    len / 2.5, thick / 2,
-    len / 4, thick / 2,
-    0, thick / 3
+    len / 2, -arch * 0.2,
+    len / 2, thick / 3,
+    len / 3, thick / 2
   );
   
-  // Bottom edge: tail → head
+  // Bottom edge
   hole.bezierCurveTo(
-    -len / 4, thick / 2,
-    -len / 3, thick / 3,
+    0, thick / 1.5,
+    -len / 3, thick / 2,
     -len / 2, 0
   );
 
@@ -161,69 +145,30 @@ function createEyebrowWindow(params: EyebrowCustomParams): THREE.Path {
  */
 function createEyebrowRidge(params: EyebrowCustomParams): THREE.Path {
   // Slightly smaller than the window for tolerance
-  const len = (params.lengthMm || 52) * 0.52;
-  const arch = (params.archHeightMm || 13.5) * 0.28;
-  const thick = (params.thicknessMm || 6.5) * 0.8;
+  const len = (params.lengthMm || 52) * 0.47;
+  const arch = (params.archHeightMm || 13.5) * 0.23;
+  const thick = (params.thicknessMm || 6.5) * 0.7;
 
   const ridge = new THREE.Path();
   
   ridge.moveTo(-len / 2, 0);
   ridge.bezierCurveTo(
-    -len / 4, -arch,
-    len / 6, -arch * 1.1,
-    len / 3, -arch * 0.25
+    -len / 3, -arch * 0.7,
+    0, -arch * 0.9,
+    len / 3, -arch * 0.4
   );
   ridge.bezierCurveTo(
-    len / 2.5, thick / 2,
-    len / 4, thick / 2,
-    0, thick / 3
+    len / 2, -arch * 0.1,
+    len / 2, thick / 3,
+    len / 3, thick / 2
   );
   ridge.bezierCurveTo(
-    -len / 4, thick / 2,
-    -len / 3, thick / 3,
+    0, thick / 1.4,
+    -len / 3, thick / 2,
     -len / 2, 0
   );
 
   return ridge;
-}
-
-/**
- * Creates nose alignment notch
- */
-function createNoseNotch(): THREE.Path {
-  const notch = new THREE.Path();
-  const w = 6;
-  const h = 4;
-
-  notch.moveTo(-w / 2, 0);
-  notch.lineTo(-w / 2, -h);
-  notch.lineTo(w / 2, -h);
-  notch.lineTo(w / 2, 0);
-  notch.lineTo(w / 4, h / 2);
-  notch.lineTo(-w / 4, h / 2);
-  notch.closePath();
-
-  return notch;
-}
-
-/**
- * Creates pour channel for silicone casting
- */
-function createPourChannel(width: number, height: number, depth: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.moveTo(-width / 2, 0);
-  shape.lineTo(width / 2, 0);
-  shape.lineTo(width / 2, height);
-  shape.lineTo(-width / 2, height);
-  shape.closePath();
-
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    steps: 1,
-    depth: depth,
-    bevelEnabled: false,
-  });
-
-  return geo;
 }
 
 /**
@@ -234,67 +179,9 @@ function applyForeheadCurvature(geo: THREE.BufferGeometry, radius: number): void
   for (let i = 0; i < pos.count; i++) {
     const px = pos.getX(i);
     const absX = Math.min(Math.abs(px), radius - 1);
-    const z = -(radius - Math.sqrt(radius * radius - absX * absX)) * 0.15;
+    const z = -(radius - Math.sqrt(radius * radius - absX * absX)) * 0.12;
     pos.setZ(i, pos.getZ(i) + z);
   }
-}
-
-/**
- * Merges multiple BufferGeometries
- */
-function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const merged = new THREE.BufferGeometry();
-  
-  let totalVertices = 0;
-  let totalIndices = 0;
-  
-  geometries.forEach(geo => {
-    totalVertices += geo.attributes.position.count;
-    if (geo.index) {
-      totalIndices += geo.index.count;
-    }
-  });
-  
-  const positions = new Float32Array(totalVertices * 3);
-  const normals = new Float32Array(totalVertices * 3);
-  const indices = new Uint32Array(totalIndices);
-  
-  let vertexOffset = 0;
-  let indexOffset = 0;
-  let vertexCount = 0;
-  
-  geometries.forEach(geo => {
-    const posAttr = geo.attributes.position;
-    const normAttr = geo.attributes.normal;
-    
-    for (let i = 0; i < posAttr.count; i++) {
-      positions[(vertexOffset + i) * 3] = posAttr.getX(i);
-      positions[(vertexOffset + i) * 3 + 1] = posAttr.getY(i);
-      positions[(vertexOffset + i) * 3 + 2] = posAttr.getZ(i);
-      
-      if (normAttr) {
-        normals[(vertexOffset + i) * 3] = normAttr.getX(i);
-        normals[(vertexOffset + i) * 3 + 1] = normAttr.getY(i);
-        normals[(vertexOffset + i) * 3 + 2] = normAttr.getZ(i);
-      }
-    }
-    
-    if (geo.index) {
-      for (let i = 0; i < geo.index.count; i++) {
-        indices[indexOffset + i] = geo.index.getX(i) + vertexCount;
-      }
-      indexOffset += geo.index.count;
-    }
-    
-    vertexCount += posAttr.count;
-    vertexOffset += posAttr.count;
-  });
-  
-  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-  merged.setIndex(new THREE.BufferAttribute(indices, 1));
-  
-  return merged;
 }
 
 /**
@@ -312,7 +199,7 @@ export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry):
   const view = new DataView(buf);
 
   // Header
-  const hdr = "artistiQ Personalized Eyebrow Mold - 3D Printable";
+  const hdr = "artistiQ Eyebrow Mold STL";
   for (let i = 0; i < 80; i++) {
     view.setUint8(i, i < hdr.length ? hdr.charCodeAt(i) : 0);
   }

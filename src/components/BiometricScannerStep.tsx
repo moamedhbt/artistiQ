@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BiometricMeasurements } from '@/types';
 import { calculateBiometricsFromLandmarks, DEFAULT_BIOMETRICS } from '@/lib/biometrics';
-import { Camera, RefreshCw, CheckCircle2, ChevronRight, ChevronDown, ChevronUp, HelpCircle, Eye, RotateCcw, Scan, Crosshair, Zap } from 'lucide-react';
+import { Camera, RefreshCw, CheckCircle2, ChevronRight, ChevronDown, ChevronUp, HelpCircle, Eye, RotateCcw, Scan, Crosshair, Zap, Move, Save } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const FaceMeshCanvas = dynamic(() => import('./FaceMeshCanvas'), { ssr: false });
@@ -13,11 +13,15 @@ interface BiometricScannerStepProps {
   onBack: () => void;
 }
 
+// Eyebrow landmark indices
+const LEFT_EYEBROW_INDICES = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
+const RIGHT_EYEBROW_INDICES = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
+
 export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   onCompleted,
   onBack,
 }) => {
-  const [phase, setPhase] = useState<'idle' | 'detecting' | 'scanning' | 'completed'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'detecting' | 'scanning' | 'adjusting' | 'completed'>('idle');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -28,9 +32,16 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   const [snapshots, setSnapshots] = useState<{ front?: string; left?: string; right?: string }>({});
   const [biometrics, setBiometrics] = useState<BiometricMeasurements>(DEFAULT_BIOMETRICS);
   const [faceLandmarks, setFaceLandmarks] = useState<{ x: number; y: number; z: number }[]>([]);
+  
+  // Adjustment state
+  const [adjustmentPhoto, setAdjustmentPhoto] = useState<string | null>(null);
+  const [leftBrowPoints, setLeftBrowPoints] = useState<{ x: number; y: number }[]>([]);
+  const [rightBrowPoints, setRightBrowPoints] = useState<{ x: number; y: number }[]>([]);
+  const [draggingPoint, setDraggingPoint] = useState<{ side: 'left' | 'right'; index: number } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const adjustmentCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanStartedRef = useRef(false);
 
@@ -80,7 +91,9 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           14.5, 14.3
         );
         setBiometrics(computed);
-        setPhase('completed');
+        
+        // Go to adjustment phase
+        setPhase('adjusting');
       }
     }, 30);
   }, [capture]);
@@ -89,7 +102,6 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   const handleFaceStatus = useCallback((status: 'searching' | 'detected' | 'positioned') => {
     setFaceStatus(status);
     if (status === 'positioned' && !scanStartedRef.current) {
-      // Auto-start scan after 1 second
       setTimeout(() => {
         runScan();
       }, 1000);
@@ -99,6 +111,20 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
   // Handle landmarks from FaceMeshCanvas
   const handleLandmarks = useCallback((landmarks: { x: number; y: number; z: number }[]) => {
     setFaceLandmarks(landmarks);
+    
+    // Extract eyebrow points
+    if (landmarks.length > 0) {
+      const leftPoints = LEFT_EYEBROW_INDICES.map(i => ({
+        x: landmarks[i].x,
+        y: landmarks[i].y,
+      }));
+      const rightPoints = RIGHT_EYEBROW_INDICES.map(i => ({
+        x: landmarks[i].x,
+        y: landmarks[i].y,
+      }));
+      setLeftBrowPoints(leftPoints);
+      setRightBrowPoints(rightPoints);
+    }
   }, []);
 
   // Start camera
@@ -151,8 +177,157 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     }, 1000);
   };
 
+  // Draw adjustment canvas
+  useEffect(() => {
+    if (phase !== 'adjusting' || !adjustmentCanvasRef.current) return;
+    
+    const canvas = adjustmentCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Set canvas size
+    canvas.width = 400;
+    canvas.height = 500;
+    
+    // Draw photo background
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      drawEyebrowPoints(ctx, canvas.width, canvas.height);
+    };
+    img.src = snapshots.front || '';
+  }, [phase, snapshots.front, leftBrowPoints, rightBrowPoints]);
+
+  const drawEyebrowPoints = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    // Draw left eyebrow
+    ctx.strokeStyle = '#D8A499';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    leftBrowPoints.forEach((p, i) => {
+      const x = p.x * w;
+      const y = p.y * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    
+    // Draw left eyebrow points
+    leftBrowPoints.forEach((p, i) => {
+      const x = p.x * w;
+      const y = p.y * h;
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = draggingPoint?.side === 'left' && draggingPoint?.index === i ? '#00FF88' : '#D8A499';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+    
+    // Draw right eyebrow
+    ctx.strokeStyle = '#D8A499';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    rightBrowPoints.forEach((p, i) => {
+      const x = p.x * w;
+      const y = p.y * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    
+    // Draw right eyebrow points
+    rightBrowPoints.forEach((p, i) => {
+      const x = p.x * w;
+      const y = p.y * h;
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = draggingPoint?.side === 'right' && draggingPoint?.index === i ? '#00FF88' : '#D8A499';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  };
+
+  // Handle mouse events for dragging points
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = adjustmentCanvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    
+    // Check if clicking on a point
+    const checkPoints = (points: { x: number; y: number }[], side: 'left' | 'right') => {
+      for (let i = 0; i < points.length; i++) {
+        const dx = points[i].x - x;
+        const dy = points[i].y - y;
+        if (Math.sqrt(dx * dx + dy * dy) < 0.03) {
+          setDraggingPoint({ side, index: i });
+          return true;
+        }
+      }
+      return false;
+    };
+    
+    if (!checkPoints(leftBrowPoints, 'left')) {
+      checkPoints(rightBrowPoints, 'right');
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!draggingPoint) return;
+    
+    const canvas = adjustmentCanvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    
+    if (draggingPoint.side === 'left') {
+      setLeftBrowPoints(prev => {
+        const newPoints = [...prev];
+        newPoints[draggingPoint.index] = { x, y };
+        return newPoints;
+      });
+    } else {
+      setRightBrowPoints(prev => {
+        const newPoints = [...prev];
+        newPoints[draggingPoint.index] = { x, y };
+        return newPoints;
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDraggingPoint(null);
+  };
+
+  // Update landmarks with adjusted points
+  const updateLandmarksWithAdjustedPoints = () => {
+    const newLandmarks = [...faceLandmarks];
+    
+    LEFT_EYEBROW_INDICES.forEach((idx, i) => {
+      if (i < leftBrowPoints.length) {
+        newLandmarks[idx] = { ...newLandmarks[idx], x: leftBrowPoints[i].x, y: leftBrowPoints[i].y };
+      }
+    });
+    
+    RIGHT_EYEBROW_INDICES.forEach((idx, i) => {
+      if (i < rightBrowPoints.length) {
+        newLandmarks[idx] = { ...newLandmarks[idx], x: rightBrowPoints[i].x, y: rightBrowPoints[i].y };
+      }
+    });
+    
+    setFaceLandmarks(newLandmarks);
+  };
+
   const handleFinish = () => {
     stopCamera();
+    updateLandmarksWithAdjustedPoints();
     onCompleted(biometrics, snapshots, faceLandmarks);
   };
 
@@ -163,6 +338,9 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
     setFaceStatus('searching');
     setSnapshots({});
     setBiometrics(DEFAULT_BIOMETRICS);
+    setFaceLandmarks([]);
+    setLeftBrowPoints([]);
+    setRightBrowPoints([]);
     startCamera();
   };
 
@@ -173,6 +351,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       <div className="text-center space-y-3 mb-6">
         <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-mono tracking-wider ${
           phase === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+          phase === 'adjusting' ? 'bg-roseGold/10 border-roseGold/30 text-roseGold' :
           faceStatus === 'positioned' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
           faceStatus === 'detected' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
           'bg-biometric-cyan/10 border-biometric-cyan/30 text-biometric-cyan'
@@ -181,6 +360,7 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           {phase === 'idle' && 'Initialisation...'}
           {phase === 'detecting' && 'Détection en cours...'}
           {phase === 'scanning' && `Scan ${currentAngle.toUpperCase()}...`}
+          {phase === 'adjusting' && 'Ajustez les points des sourcils'}
           {phase === 'completed' && 'Scan terminé ✓'}
         </div>
 
@@ -190,12 +370,14 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
           {phase === 'scanning' && currentAngle === 'front' && 'Regardez droit devant'}
           {phase === 'scanning' && currentAngle === 'left' && 'Tournez à GAUCHE'}
           {phase === 'scanning' && currentAngle === 'right' && 'Tournez à DROITE'}
+          {phase === 'adjusting' && 'Ajustez la forme de vos sourcils'}
           {phase === 'completed' && 'Empreinte biométrique extraite'}
         </h2>
 
         <p className="text-sm text-gray-300">
           {phase === 'scanning' && 'Restez immobile pendant l\'analyse'}
           {phase === 'detecting' && 'Le scan démarrera automatiquement'}
+          {phase === 'adjusting' && 'Glissez les points pour ajuster la forme exacte de vos sourcils'}
           {phase === 'completed' && 'Prêt pour la personnalisation en Studio 3D'}
         </p>
 
@@ -217,9 +399,9 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
             </h4>
             <div className="space-y-2 text-xs text-gray-300">
               <p>📸 <strong className="text-white">1. Caméra</strong> — Placez votre visage dans l&apos;ovale</p>
-              <p>🔄 <strong className="text-white">2. Rotation</strong> — Le scan capture 3 angles automatiquement</p>
-              <p>📊 <strong className="text-white">3. Analyse</strong> — Le système mesure vos sourcils au 0.1mm</p>
-              <p>🖨️ <strong className="text-white">4. Moule</strong> — Un fichier STL personnalisé est généré</p>
+              <p>🔄 <strong className="text-white">2. Scan</strong> — Le système détecte vos sourcils automatiquement</p>
+              <p>✏️ <strong className="text-white">3. Ajustement</strong> — Glissez les points pour affiner la forme</p>
+              <p>🖨️ <strong className="text-white">4. STL</strong> — Le pochoir est généré avec vos points ajustés</p>
             </div>
           </div>
         )}
@@ -228,21 +410,24 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       {/* STATUS BAR */}
       <div className="flex items-center justify-center gap-3 mb-4">
         <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-mono ${
+          phase === 'adjusting' ? 'bg-roseGold/10 border border-roseGold/30 text-roseGold' :
           faceStatus === 'positioned' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' :
           faceStatus === 'detected' ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400' :
           cameraActive ? 'bg-biometric-cyan/10 border border-biometric-cyan/30 text-biometric-cyan' :
           'bg-red-500/10 border border-red-500/30 text-red-400'
         }`}>
           <span className={`w-2 h-2 rounded-full ${
+            phase === 'adjusting' ? 'bg-roseGold' :
             faceStatus === 'positioned' ? 'bg-emerald-400' :
             faceStatus === 'detected' ? 'bg-amber-400 animate-pulse' :
             cameraActive ? 'bg-biometric-cyan animate-pulse' : 'bg-red-400'
           }`} />
-          {faceStatus === 'positioned' ? 'Visage positionné' :
+          {phase === 'adjusting' ? 'Mode ajustement' :
+           faceStatus === 'positioned' ? 'Visage positionné' :
            faceStatus === 'detected' ? 'Visage détecté' :
            cameraActive ? 'Recherche...' : 'Caméra off'}
         </div>
-        {!cameraActive && (
+        {!cameraActive && phase !== 'adjusting' && (
           <button onClick={startCamera} className="flex items-center gap-2 px-4 py-2 rounded-full bg-obsidian-card border border-roseGold/30 text-roseGold text-xs font-medium hover:bg-roseGold/10 transition-all">
             <RefreshCw className="w-3 h-3" /> Réessayer
           </button>
@@ -250,55 +435,91 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
       </div>
 
       {/* SCANNER VIEWPORT */}
-      <div className="relative mx-auto w-full max-w-sm sm:max-w-md aspect-[3/4] rounded-3xl bg-black overflow-hidden"
-        style={{
-          border: `2px solid ${faceStatus === 'positioned' ? 'rgba(0, 255, 136, 0.5)' : faceStatus === 'detected' ? 'rgba(0, 242, 254, 0.4)' : 'rgba(216, 164, 153, 0.3)'}`,
-          boxShadow: faceStatus === 'positioned' ? '0 0 40px rgba(0, 255, 136, 0.2)' : '0 0 40px rgba(216, 164, 153, 0.1)',
-        }}
-      >
-        <canvas ref={canvasRef} className="hidden" />
+      {phase !== 'adjusting' ? (
+        <div className="relative mx-auto w-full max-w-sm sm:max-w-md aspect-[3/4] rounded-3xl bg-black overflow-hidden"
+          style={{
+            border: `2px solid ${faceStatus === 'positioned' ? 'rgba(0, 255, 136, 0.5)' : faceStatus === 'detected' ? 'rgba(0, 242, 254, 0.4)' : 'rgba(216, 164, 153, 0.3)'}`,
+            boxShadow: faceStatus === 'positioned' ? '0 0 40px rgba(0, 255, 136, 0.2)' : '0 0 40px rgba(216, 164, 153, 0.1)',
+          }}
+        >
+          <canvas ref={canvasRef} className="hidden" />
 
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          data-scanner="true"
-          className={`absolute inset-0 w-full h-full object-cover -scale-x-100 ${cameraActive ? 'block' : 'hidden'}`}
-          style={{ zIndex: 1 }}
-        />
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            data-scanner="true"
+            className={`absolute inset-0 w-full h-full object-cover -scale-x-100 ${cameraActive ? 'block' : 'hidden'}`}
+            style={{ zIndex: 1 }}
+          />
 
-        {!cameraActive && (
-          <div className="absolute inset-0 bg-gradient-to-b from-obsidian-card to-obsidian flex flex-col items-center justify-center p-8 text-center space-y-4" style={{ zIndex: 1 }}>
-            <Camera className="w-16 h-16 text-roseGold animate-pulse" />
-            <p className="text-sm text-white font-semibold">{cameraError || 'Initialisation...'}</p>
-            <p className="text-xs text-gray-400">Autorisez l&apos;accès à la caméra</p>
-          </div>
-        )}
+          {!cameraActive && (
+            <div className="absolute inset-0 bg-gradient-to-b from-obsidian-card to-obsidian flex flex-col items-center justify-center p-8 text-center space-y-4" style={{ zIndex: 1 }}>
+              <Camera className="w-16 h-16 text-roseGold animate-pulse" />
+              <p className="text-sm text-white font-semibold">{cameraError || 'Initialisation...'}</p>
+              <p className="text-xs text-gray-400">Autorisez l&apos;accès à la caméra</p>
+            </div>
+          )}
 
-        <FaceMeshCanvas
-          isScanning={phase === 'scanning'}
-          onFaceStatus={handleFaceStatus}
-          onLandmarks={handleLandmarks}
-        />
+          <FaceMeshCanvas
+            isScanning={phase === 'scanning'}
+            onFaceStatus={handleFaceStatus}
+            onLandmarks={handleLandmarks}
+          />
 
-        {/* Progress bar */}
-        <div className="absolute bottom-4 left-4 right-4 space-y-2 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border" style={{ zIndex: 30 }}>
-          <div className="flex items-center justify-between text-xs font-mono text-gray-300">
-            <span>PROGRESSION</span>
-            <span className="text-roseGold font-bold">{progress}%</span>
-          </div>
-          <div className="w-full h-2.5 bg-obsidian rounded-full overflow-hidden border border-obsidian-border">
-            <div className="h-full bg-gradient-to-r from-biometric-cyan via-roseGold to-emerald-400 transition-all duration-300" style={{ width: `${progress}%` }}/>
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className={progress >= 0 ? 'text-emerald-400' : 'text-gray-600'}>● Face</span>
-            <span className={progress >= 33 ? 'text-biometric-cyan' : 'text-gray-600'}>● Gauche</span>
-            <span className={progress >= 66 ? 'text-biometric-cyan' : 'text-gray-600'}>● Droite</span>
-            <span className={progress >= 100 ? 'text-emerald-400' : 'text-gray-600'}>● Terminé</span>
+          {/* Progress bar */}
+          <div className="absolute bottom-4 left-4 right-4 space-y-2 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border" style={{ zIndex: 30 }}>
+            <div className="flex items-center justify-between text-xs font-mono text-gray-300">
+              <span>PROGRESSION</span>
+              <span className="text-roseGold font-bold">{progress}%</span>
+            </div>
+            <div className="w-full h-2.5 bg-obsidian rounded-full overflow-hidden border border-obsidian-border">
+              <div className="h-full bg-gradient-to-r from-biometric-cyan via-roseGold to-emerald-400 transition-all duration-300" style={{ width: `${progress}%` }}/>
+            </div>
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className={progress >= 0 ? 'text-emerald-400' : 'text-gray-600'}>● Face</span>
+              <span className={progress >= 33 ? 'text-biometric-cyan' : 'text-gray-600'}>● Gauche</span>
+              <span className={progress >= 66 ? 'text-biometric-cyan' : 'text-gray-600'}>● Droite</span>
+              <span className={progress >= 100 ? 'text-emerald-400' : 'text-gray-600'}>● Terminé</span>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* ADJUSTMENT VIEWPORT */
+        <div className="relative mx-auto w-full max-w-sm sm:max-w-md aspect-[4/5] rounded-3xl bg-black overflow-hidden border-2 border-roseGold/50 shadow-rose-glow">
+          <canvas
+            ref={adjustmentCanvasRef}
+            className="w-full h-full cursor-crosshair"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+          
+          {/* Instructions */}
+          <div className="absolute top-4 left-4 right-4 bg-obsidian/80 backdrop-blur-md p-3 rounded-2xl border border-roseGold/20">
+            <div className="flex items-center gap-2 text-xs font-mono text-roseGold">
+              <Move className="w-4 h-4" />
+              <span>Glissez les points pour ajuster la forme de vos sourcils</span>
+            </div>
+          </div>
+          
+          {/* Legend */}
+          <div className="absolute bottom-4 left-4 right-4 bg-obsidian/80 backdrop-blur-md p-3 rounded-2xl border border-obsidian-border">
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className="flex items-center gap-1.5 text-roseGold">
+                <span className="w-3 h-3 rounded-full bg-roseGold" />
+                Points sourcils
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="w-3 h-3 rounded-full bg-emerald-400" />
+                Point sélectionné
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ACTION BUTTONS */}
       <div className="mt-8 space-y-4">
@@ -309,6 +530,17 @@ export const BiometricScannerStep: React.FC<BiometricScannerStepProps> = ({
               <Scan className="w-5 h-5 animate-spin"/>
               <span className="font-mono text-sm">Scan {currentAngle.toUpperCase()}... {progress}%</span>
             </div>
+          </div>
+        )}
+
+        {phase === 'adjusting' && (
+          <div className="flex gap-3">
+            <button onClick={() => setPhase('completed')}
+              className="flex-1 py-5 rounded-2xl bg-gradient-to-r from-roseGold-dark via-roseGold to-roseGold-metallic text-obsidian font-bold text-base shadow-rose-glow hover:shadow-[0_0_60px_rgba(216,164,153,0.4)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+            >
+              <Save className="w-6 h-6"/>
+              <span>Valider les ajustements</span>
+            </button>
           </div>
         )}
 

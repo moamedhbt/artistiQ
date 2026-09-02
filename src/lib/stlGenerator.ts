@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 /**
  * Creates a professional 3D printable eyebrow stencil
- * Clean, simple geometry that actually looks like a real stencil
+ * Simple, clean geometry - a flat plate with an eyebrow-shaped window
  */
 export function createEyebrowStencil3DGeometry(
   params: EyebrowCustomParams,
@@ -11,119 +11,80 @@ export function createEyebrowStencil3DGeometry(
 ): { stencilMesh: THREE.BufferGeometry; moldMesh: THREE.BufferGeometry } {
   
   // ── DIMENSIONS (mm) ──
-  const frameW = 80;
-  const frameH = 45;
-  const frameDepth = params.stencilThicknessMm || 2.0;
+  const W = 80;  // Width
+  const H = 40;  // Height
+  const D = 2;   // Thickness
 
-  // ── CREATE STENCIL SHAPE ──
-  const shape = new THREE.Shape();
+  // ── OUTER SHAPE: Rounded rectangle ──
+  const outer = new THREE.Shape();
+  const r = 5;
+  outer.moveTo(-W/2 + r, -H/2);
+  outer.lineTo(W/2 - r, -H/2);
+  outer.quadraticCurveTo(W/2, -H/2, W/2, -H/2 + r);
+  outer.lineTo(W/2, H/2 - r);
+  outer.quadraticCurveTo(W/2, H/2, W/2 - r, H/2);
+  outer.lineTo(-W/2 + r, H/2);
+  outer.quadraticCurveTo(-W/2, H/2, -W/2, H/2 - r);
+  outer.lineTo(-W/2, -H/2 + r);
+  outer.quadraticCurveTo(-W/2, -H/2, -W/2 + r, -H/2);
+
+  // ── EYEBROW WINDOW: Simple almond shape ──
+  const len = (params.lengthMm || 52) * 0.5;
+  const arch = (params.archHeightMm || 13.5) * 0.25;
   
-  // Outer rounded rectangle
-  const r = 6;
-  shape.moveTo(-frameW/2 + r, -frameH/2);
-  shape.lineTo(frameW/2 - r, -frameH/2);
-  shape.quadraticCurveTo(frameW/2, -frameH/2, frameW/2, -frameH/2 + r);
-  shape.lineTo(frameW/2, frameH/2 - r);
-  shape.quadraticCurveTo(frameW/2, frameH/2, frameW/2 - r, frameH/2);
-  shape.lineTo(-frameW/2 + r, frameH/2);
-  shape.quadraticCurveTo(-frameW/2, frameH/2, -frameW/2, frameH/2 - r);
-  shape.lineTo(-frameW/2, -frameH/2 + r);
-  shape.quadraticCurveTo(-frameW/2, -frameH/2, -frameW/2 + r, -frameH/2);
+  const window = new THREE.Path();
+  
+  // Simple almond/eye shape for the eyebrow window
+  // This creates a clean, recognizable stencil window
+  window.moveTo(-len, 0);
+  
+  // Top curve
+  window.bezierCurveTo(
+    -len * 0.5, -arch * 1.5,
+    len * 0.5, -arch * 1.5,
+    len, 0
+  );
+  
+  // Bottom curve
+  window.bezierCurveTo(
+    len * 0.5, arch * 1.5,
+    -len * 0.5, arch * 1.5,
+    -len, 0
+  );
+  
+  outer.holes.push(window);
 
-  // ── EYEBROW WINDOW (the key feature) ──
-  const eyebrowPath = createNaturalEyebrowShape(params);
-  shape.holes.push(eyebrowPath);
-
-  // ── NOSE ALIGNMENT NOTCH ──
-  const noseNotch = new THREE.Path();
-  noseNotch.moveTo(-4, -frameH/2);
-  noseNotch.lineTo(0, -frameH/2 + 5);
-  noseNotch.lineTo(4, -frameH/2);
-  noseNotch.closePath();
-  shape.holes.push(noseNotch);
+  // ── NOSE NOTCH: Small triangle at bottom ──
+  const notch = new THREE.Path();
+  notch.moveTo(-3, -H/2);
+  notch.lineTo(0, -H/2 + 4);
+  notch.lineTo(3, -H/2);
+  notch.closePath();
+  outer.holes.push(notch);
 
   // ── EXTRUDE ──
-  const geometry = new THREE.ExtrudeGeometry(shape, {
+  const geo = new THREE.ExtrudeGeometry(outer, {
     steps: 1,
-    depth: frameDepth,
-    bevelEnabled: true,
-    bevelThickness: 0.3,
-    bevelSize: 0.3,
-    bevelSegments: 2,
+    depth: D,
+    bevelEnabled: false,
   });
 
-  geometry.center();
-  geometry.computeVertexNormals();
+  geo.center();
+  geo.computeVertexNormals();
 
   return {
-    stencilMesh: geometry,
-    moldMesh: geometry, // Same - we only need the stencil
+    stencilMesh: geo,
+    moldMesh: geo,
   };
 }
 
 /**
- * Creates a natural eyebrow shape using smooth curves
- * This creates a realistic eyebrow window cutout
- */
-function createNaturalEyebrowShape(params: EyebrowCustomParams): THREE.Path {
-  const len = (params.lengthMm || 52) * 0.6;
-  const arch = (params.archHeightMm || 13.5) * 0.35;
-  const thick = (params.thicknessMm || 6.5) * 0.9;
-
-  const path = new THREE.Path();
-  
-  // Start at eyebrow head (inner corner near nose)
-  const startX = -len / 2;
-  const startY = 0;
-  
-  path.moveTo(startX, startY);
-  
-  // Top edge: smooth arch from head to tail
-  // Using multiple bezier segments for natural curve
-  path.bezierCurveTo(
-    startX + len * 0.15, -arch * 0.6,   // Control 1: slight rise
-    startX + len * 0.35, -arch * 1.0,   // Control 2: approaching peak
-    startX + len * 0.5, -arch * 0.9     // End: near peak
-  );
-  
-  path.bezierCurveTo(
-    startX + len * 0.65, -arch * 0.8,   // Control 1: past peak
-    startX + len * 0.85, -arch * 0.3,   // Control 2: descending
-    startX + len, -arch * 0.1           // End: tail tip
-  );
-  
-  // Tail tip: small curve
-  path.bezierCurveTo(
-    startX + len + 2, 0,                // Control: round the tip
-    startX + len + 1, thick * 0.3,      // Control: curve back
-    startX + len * 0.9, thick * 0.5     // End: bottom of tail
-  );
-  
-  // Bottom edge: smooth curve from tail back to head
-  path.bezierCurveTo(
-    startX + len * 0.7, thick * 0.7,    // Control 1
-    startX + len * 0.4, thick * 0.8,    // Control 2
-    startX + len * 0.2, thick * 0.6     // End: mid-bottom
-  );
-  
-  path.bezierCurveTo(
-    startX + len * 0.05, thick * 0.4,   // Control 1
-    startX - 2, thick * 0.2,            // Control 2
-    startX, startY                      // End: back to start
-  );
-
-  return path;
-}
-
-/**
  * Exports BufferGeometry to Binary STL
- * Clean, valid STL format
  */
 export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry): ArrayBuffer {
   geometry.computeVertexNormals();
 
   const pos = geometry.attributes.position;
-  const norm = geometry.attributes.normal;
   const idx = geometry.index;
 
   const triCount = idx ? idx.count / 3 : pos.count / 3;
@@ -139,6 +100,12 @@ export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry):
   view.setUint32(80, triCount, true);
 
   let off = 84;
+  const v0 = new THREE.Vector3();
+  const v1 = new THREE.Vector3();
+  const v2 = new THREE.Vector3();
+  const cb = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const normal = new THREE.Vector3();
 
   for (let t = 0; t < triCount; t++) {
     let i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
@@ -148,33 +115,30 @@ export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry):
       i2 = idx.getX(i2);
     }
 
-    // Get face normal (average of vertex normals)
-    const nx = (norm.getX(i0) + norm.getX(i1) + norm.getX(i2)) / 3;
-    const ny = (norm.getY(i0) + norm.getY(i1) + norm.getY(i2)) / 3;
-    const nz = (norm.getZ(i0) + norm.getZ(i1) + norm.getZ(i2)) / 3;
-    const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+    v0.set(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
+    v1.set(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
+    v2.set(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
 
-    // Normal
-    view.setFloat32(off, nx/len, true); off += 4;
-    view.setFloat32(off, ny/len, true); off += 4;
-    view.setFloat32(off, nz/len, true); off += 4;
+    cb.subVectors(v2, v1);
+    ab.subVectors(v0, v1);
+    normal.crossVectors(cb, ab).normalize();
 
-    // Vertex 1
-    view.setFloat32(off, pos.getX(i0), true); off += 4;
-    view.setFloat32(off, pos.getY(i0), true); off += 4;
-    view.setFloat32(off, pos.getZ(i0), true); off += 4;
+    view.setFloat32(off, normal.x, true); off += 4;
+    view.setFloat32(off, normal.y, true); off += 4;
+    view.setFloat32(off, normal.z, true); off += 4;
 
-    // Vertex 2
-    view.setFloat32(off, pos.getX(i1), true); off += 4;
-    view.setFloat32(off, pos.getY(i1), true); off += 4;
-    view.setFloat32(off, pos.getZ(i1), true); off += 4;
+    view.setFloat32(off, v0.x, true); off += 4;
+    view.setFloat32(off, v0.y, true); off += 4;
+    view.setFloat32(off, v0.z, true); off += 4;
 
-    // Vertex 3
-    view.setFloat32(off, pos.getX(i2), true); off += 4;
-    view.setFloat32(off, pos.getY(i2), true); off += 4;
-    view.setFloat32(off, pos.getZ(i2), true); off += 4;
+    view.setFloat32(off, v1.x, true); off += 4;
+    view.setFloat32(off, v1.y, true); off += 4;
+    view.setFloat32(off, v1.z, true); off += 4;
 
-    // Attribute byte count
+    view.setFloat32(off, v2.x, true); off += 4;
+    view.setFloat32(off, v2.y, true); off += 4;
+    view.setFloat32(off, v2.z, true); off += 4;
+
     view.setUint16(off, 0, true); off += 2;
   }
 

@@ -2,75 +2,78 @@ import { EyebrowCustomParams, BiometricMeasurements } from '@/types';
 import * as THREE from 'three';
 
 /**
- * Creates a photorealistic 3D Eyebrow Stamp Tool Geometry (Ergonomic Handle + Silicone Brow Stencil Face)
+ * Creates a professional eyebrow mold for silicone casting
+ * Single clean geometry - no merging that could cause issues
  */
 export function createEyebrowStencil3DGeometry(
   params: EyebrowCustomParams,
   biometrics: BiometricMeasurements
 ): { stencilMesh: THREE.BufferGeometry; moldMesh: THREE.BufferGeometry } {
   
-  // Create group geometry for the complete stamp assembly
-  const group = new THREE.Group();
-
-  // 1. Sleek Outer Stencil Frame (Rounded Rectangle)
-  const frameWidth = 65; // mm
-  const frameHeight = 35; // mm
+  // ── DIMENSIONS (mm) ──
+  const frameW = 70;
+  const frameH = 38;
   const frameDepth = params.stencilThicknessMm || 2.5;
+  const moldWall = 4;
+  const moldBase = 5;
+  const moldR = 8;
 
-  const shape = new THREE.Shape();
-  const radius = 8;
-  const x = -frameWidth / 2;
-  const y = -frameHeight / 2;
-
-  shape.moveTo(x + radius, y);
-  shape.lineTo(x + frameWidth - radius, y);
-  shape.quadraticCurveTo(x + frameWidth, y, x + frameWidth, y + radius);
-  shape.lineTo(x + frameWidth, y + frameHeight - radius);
-  shape.quadraticCurveTo(x + frameWidth, y + frameHeight, x + frameWidth - radius, y + frameHeight);
-  shape.lineTo(x + radius, y + frameHeight);
-  shape.quadraticCurveTo(x, y + frameHeight, x, y + frameHeight - radius);
-  shape.lineTo(x, y + radius);
-  shape.quadraticCurveTo(x, y, x + radius, y);
-
-  // Inner Eyebrow Cutout
-  const hole = new THREE.Path();
-  const len = (params.lengthMm || 52) * 0.65;
-  const arch = (params.archHeightMm || 13.5) * 0.3;
-  const thick = (params.thicknessMm || 6.5) * 1.1;
-
-  hole.moveTo(-len / 2, -thick / 2);
-  hole.bezierCurveTo(-len * 0.2, -thick / 2, len * 0.1, arch - thick / 2, len * 0.25, arch);
-  hole.bezierCurveTo(len * 0.4, arch, len * 0.45, 0, len / 2, -thick * 0.4);
-  hole.bezierCurveTo(len * 0.38, -thick, len * 0.2, arch - thick, -len * 0.1, arch - thick);
-  hole.bezierCurveTo(-len * 0.3, -thick, -len * 0.4, -thick / 2, -len / 2, -thick / 2);
+  // ── 1. STENCIL (the positive - what the client receives) ──
+  const stencilShape = createRoundedRect(frameW, frameH, 6);
   
-  shape.holes.push(hole);
+  // Eyebrow window cutout
+  const eyebrowWindow = createEyebrowWindow(params);
+  stencilShape.holes.push(eyebrowWindow);
 
-  const extrudeSettings = {
+  const stencilGeo = new THREE.ExtrudeGeometry(stencilShape, {
     steps: 1,
     depth: frameDepth,
     bevelEnabled: true,
-    bevelThickness: 1.0,
-    bevelSize: 1.0,
-    bevelSegments: 5,
-  };
-
-  const stencilGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    bevelThickness: 0.3,
+    bevelSize: 0.3,
+    bevelSegments: 2,
+  });
   stencilGeo.center();
 
-  // Curve geometry along Z to fit forehead curvature
-  const curveRadius = biometrics.foreheadCurvatureRadiusMm || 78;
-  const posAttr = stencilGeo.attributes.position;
-
-  for (let i = 0; i < posAttr.count; i++) {
-    const px = posAttr.getX(i);
-    const absX = Math.min(Math.abs(px), curveRadius - 1);
-    const z = -(curveRadius - Math.sqrt(curveRadius * curveRadius - absX * absX)) * 0.25;
-    posAttr.setZ(i, posAttr.getZ(i) + z);
-  }
+  // Curve to fit forehead
+  applyForeheadCurvature(stencilGeo, biometrics.foreheadCurvatureRadiusMm || 78);
   stencilGeo.computeVertexNormals();
 
-  const moldGeo = new THREE.BoxGeometry(frameWidth + 10, frameHeight + 10, frameDepth + 4);
+  // ── 2. MOLD (the negative - for silicone casting) ──
+  // Create mold as a single shape with cavity
+  const moldW = frameW + moldWall * 2;
+  const moldH = frameH + moldWall * 2;
+  const moldD = moldBase + frameDepth + 3;
+
+  // Outer mold shape
+  const moldOuter = createRoundedRect(moldW, moldH, moldR);
+
+  // Inner cavity (where the stencil sits) - slightly smaller for tolerance
+  const cavityW = frameW - 0.3;
+  const cavityH = frameH - 0.3;
+  const moldInner = createRoundedRect(cavityW, cavityH, 5.5);
+  moldOuter.holes.push(moldInner);
+
+  // Eyebrow ridge (creates the window in the stencil)
+  const eyebrowRidge = createEyebrowRidge(params);
+  moldOuter.holes.push(eyebrowRidge);
+
+  const moldGeo = new THREE.ExtrudeGeometry(moldOuter, {
+    steps: 1,
+    depth: moldD,
+    bevelEnabled: true,
+    bevelThickness: 1,
+    bevelSize: 1,
+    bevelSegments: 3,
+  });
+  moldGeo.center();
+
+  // Position mold behind stencil
+  const moldPos = moldGeo.attributes.position;
+  for (let i = 0; i < moldPos.count; i++) {
+    moldPos.setZ(i, moldPos.getZ(i) - moldD / 2 - frameDepth / 2 - 3);
+  }
+  moldGeo.computeVertexNormals();
 
   return {
     stencilMesh: stencilGeo,
@@ -79,85 +82,186 @@ export function createEyebrowStencil3DGeometry(
 }
 
 /**
- * Converts Three.js BufferGeometry to Binary STL ArrayBuffer
+ * Creates a rounded rectangle shape
+ */
+function createRoundedRect(width: number, height: number, radius: number): THREE.Shape {
+  const shape = new THREE.Shape();
+  const x = -width / 2;
+  const y = -height / 2;
+  const r = Math.min(radius, width / 2, height / 2);
+
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + width - r, y);
+  shape.quadraticCurveTo(x + width, y, x + width, y + r);
+  shape.lineTo(x + width, y + height - r);
+  shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  shape.lineTo(x + r, y + height);
+  shape.quadraticCurveTo(x, y + height, x, y + height - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+
+  return shape;
+}
+
+/**
+ * Creates the eyebrow window cutout for the stencil
+ */
+function createEyebrowWindow(params: EyebrowCustomParams): THREE.Path {
+  const len = (params.lengthMm || 52) * 0.5;
+  const arch = (params.archHeightMm || 13.5) * 0.25;
+  const thick = (params.thicknessMm || 6.5) * 0.75;
+
+  const hole = new THREE.Path();
+  
+  // Simple eyebrow shape - smooth curves
+  hole.moveTo(-len / 2, 0);
+  
+  // Top edge
+  hole.bezierCurveTo(
+    -len / 3, -arch * 0.8,
+    0, -arch,
+    len / 3, -arch * 0.5
+  );
+  
+  // Tail
+  hole.bezierCurveTo(
+    len / 2, -arch * 0.2,
+    len / 2, thick / 3,
+    len / 3, thick / 2
+  );
+  
+  // Bottom edge
+  hole.bezierCurveTo(
+    0, thick / 1.5,
+    -len / 3, thick / 2,
+    -len / 2, 0
+  );
+
+  return hole;
+}
+
+/**
+ * Creates the eyebrow ridge for the mold (negative of the window)
+ */
+function createEyebrowRidge(params: EyebrowCustomParams): THREE.Path {
+  // Slightly smaller than the window for tolerance
+  const len = (params.lengthMm || 52) * 0.47;
+  const arch = (params.archHeightMm || 13.5) * 0.23;
+  const thick = (params.thicknessMm || 6.5) * 0.7;
+
+  const ridge = new THREE.Path();
+  
+  ridge.moveTo(-len / 2, 0);
+  ridge.bezierCurveTo(
+    -len / 3, -arch * 0.7,
+    0, -arch * 0.9,
+    len / 3, -arch * 0.4
+  );
+  ridge.bezierCurveTo(
+    len / 2, -arch * 0.1,
+    len / 2, thick / 3,
+    len / 3, thick / 2
+  );
+  ridge.bezierCurveTo(
+    0, thick / 1.4,
+    -len / 3, thick / 2,
+    -len / 2, 0
+  );
+
+  return ridge;
+}
+
+/**
+ * Applies forehead curvature to geometry
+ */
+function applyForeheadCurvature(geo: THREE.BufferGeometry, radius: number): void {
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const px = pos.getX(i);
+    const absX = Math.min(Math.abs(px), radius - 1);
+    const z = -(radius - Math.sqrt(radius * radius - absX * absX)) * 0.12;
+    pos.setZ(i, pos.getZ(i) + z);
+  }
+}
+
+/**
+ * Exports BufferGeometry to Binary STL
  */
 export function exportBufferGeometryToBinarySTL(geometry: THREE.BufferGeometry): ArrayBuffer {
   geometry.computeVertexNormals();
 
-  const posAttr = geometry.attributes.position;
-  const indexAttr = geometry.index;
+  const pos = geometry.attributes.position;
+  const idx = geometry.index;
 
-  const triangleCount = indexAttr ? indexAttr.count / 3 : posAttr.count / 3;
-  const bufferLength = 80 + 4 + triangleCount * 50;
-  const buffer = new ArrayBuffer(bufferLength);
-  const view = new DataView(buffer);
+  const triCount = idx ? idx.count / 3 : pos.count / 3;
+  const bufLen = 80 + 4 + triCount * 50;
+  const buf = new ArrayBuffer(bufLen);
+  const view = new DataView(buf);
 
-  const headerStr = "ARTISTIQ 3D Eyebrow Stencil & Mold Model - 1:1 Precision";
+  // Header
+  const hdr = "artistiQ Eyebrow Mold STL";
   for (let i = 0; i < 80; i++) {
-    view.setUint8(i, i < headerStr.length ? headerStr.charCodeAt(i) : 32);
+    view.setUint8(i, i < hdr.length ? hdr.charCodeAt(i) : 0);
   }
+  view.setUint32(80, triCount, true);
 
-  view.setUint32(80, triangleCount, true);
+  let off = 84;
+  const v0 = new THREE.Vector3();
+  const v1 = new THREE.Vector3();
+  const v2 = new THREE.Vector3();
+  const cb = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const normal = new THREE.Vector3();
 
-  let offset = 84;
-
-  const getTriangleVertices = (triIdx: number) => {
-    let i0 = triIdx * 3;
-    let i1 = triIdx * 3 + 1;
-    let i2 = triIdx * 3 + 2;
-
-    if (indexAttr) {
-      i0 = indexAttr.getX(i0);
-      i1 = indexAttr.getX(i1);
-      i2 = indexAttr.getX(i2);
+  for (let t = 0; t < triCount; t++) {
+    let i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+    if (idx) {
+      i0 = idx.getX(i0);
+      i1 = idx.getX(i1);
+      i2 = idx.getX(i2);
     }
 
-    const v0 = new THREE.Vector3(posAttr.getX(i0), posAttr.getY(i0), posAttr.getZ(i0));
-    const v1 = new THREE.Vector3(posAttr.getX(i1), posAttr.getY(i1), posAttr.getZ(i1));
-    const v2 = new THREE.Vector3(posAttr.getX(i2), posAttr.getY(i2), posAttr.getZ(i2));
+    v0.set(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
+    v1.set(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
+    v2.set(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
 
-    const cb = new THREE.Vector3().subVectors(v2, v1);
-    const ab = new THREE.Vector3().subVectors(v0, v1);
-    const normal = cb.cross(ab).normalize();
+    cb.subVectors(v2, v1);
+    ab.subVectors(v0, v1);
+    normal.crossVectors(cb, ab).normalize();
 
-    return { normal, v0, v1, v2 };
-  };
+    view.setFloat32(off, normal.x, true); off += 4;
+    view.setFloat32(off, normal.y, true); off += 4;
+    view.setFloat32(off, normal.z, true); off += 4;
 
-  for (let t = 0; t < triangleCount; t++) {
-    const { normal, v0, v1, v2 } = getTriangleVertices(t);
+    view.setFloat32(off, v0.x, true); off += 4;
+    view.setFloat32(off, v0.y, true); off += 4;
+    view.setFloat32(off, v0.z, true); off += 4;
 
-    view.setFloat32(offset + 0, normal.x, true);
-    view.setFloat32(offset + 4, normal.y, true);
-    view.setFloat32(offset + 8, normal.z, true);
+    view.setFloat32(off, v1.x, true); off += 4;
+    view.setFloat32(off, v1.y, true); off += 4;
+    view.setFloat32(off, v1.z, true); off += 4;
 
-    view.setFloat32(offset + 12, v0.x, true);
-    view.setFloat32(offset + 16, v0.y, true);
-    view.setFloat32(offset + 20, v0.z, true);
+    view.setFloat32(off, v2.x, true); off += 4;
+    view.setFloat32(off, v2.y, true); off += 4;
+    view.setFloat32(off, v2.z, true); off += 4;
 
-    view.setFloat32(offset + 24, v1.x, true);
-    view.setFloat32(offset + 28, v1.y, true);
-    view.setFloat32(offset + 32, v1.z, true);
-
-    view.setFloat32(offset + 36, v2.x, true);
-    view.setFloat32(offset + 40, v2.y, true);
-    view.setFloat32(offset + 44, v2.z, true);
-
-    view.setUint16(offset + 48, 0, true);
-
-    offset += 50;
+    view.setUint16(off, 0, true); off += 2;
   }
 
-  return buffer;
+  return buf;
 }
 
-export function downloadSTLFile(buffer: ArrayBuffer, filename: string = "ARTISTIQ_pochoir_3d.stl"): void {
+/**
+ * Downloads STL file
+ */
+export function downloadSTLFile(buffer: ArrayBuffer, filename: string): void {
   const blob = new Blob([buffer], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

@@ -38,6 +38,7 @@ export default function Home() {
   const [biometrics, setBiometrics] = useState<BiometricMeasurements>(DEFAULT_BIOMETRICS);
   const [customParams, setCustomParams] = useState<EyebrowCustomParams>(DEFAULT_CUSTOM_PARAMS);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const [faceLandmarks, setFaceLandmarks] = useState<{ x: number; y: number; z: number }[]>([]);
 
   const scrollToSection = (sectionId: string) => {
     if (sectionId === 'hero') {
@@ -60,8 +61,11 @@ export default function Home() {
     studioRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleBiometricsCompleted = (bio: BiometricMeasurements) => {
+  const handleBiometricsCompleted = (bio: BiometricMeasurements, snapshots?: { front?: string; left?: string; right?: string }, landmarks?: { x: number; y: number; z: number }[]) => {
     setBiometrics(bio);
+    if (landmarks) {
+      setFaceLandmarks(landmarks);
+    }
     setCustomParams({
       ...customParams,
       lengthMm: bio.leftEyebrowLengthMm,
@@ -165,6 +169,7 @@ export default function Home() {
               clientInfo={clientInfo}
               biometrics={biometrics}
               customParams={customParams}
+              faceLandmarks={faceLandmarks}
               onConfirmOrder={handleConfirmOrder}
               onBack={() => setCurrentStep(3)}
             />
